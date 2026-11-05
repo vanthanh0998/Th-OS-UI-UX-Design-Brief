@@ -1,0 +1,6 @@
+{
+  "name": "ThợOS - Nền Tảng Điều Hành & Đặt Lịch Sửa Chữa Máy Lạnh",
+  "description": "Hệ thống quản lý công việc di động thực dụng cho thợ điện lạnh và ứng dụng đặt lịch vệ sinh, bảo trì máy lạnh cho khách hàng.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
