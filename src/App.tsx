@@ -26,6 +26,7 @@ import {
   Airplay,
   Shield,
   RotateCcw,
+  Archive,
 } from 'lucide-react';
 import {
   Job,
@@ -59,6 +60,8 @@ import { CustomersView } from './components/customers/CustomersView';
 import { PropertiesView } from './components/properties/PropertiesView';
 import { DevicesView } from './components/devices/DevicesView';
 import { MarketplaceConceptModal } from './components/marketplace/MarketplaceConceptModal';
+import { HandoverExportModal } from './components/handover/HandoverExportModal';
+import { DesignVariant } from './components/exploration/VisualExplorationSwitcher';
 import { StateFeedback } from './components/ui/StateFeedback';
 import { Button } from './components/ui/Button';
 
@@ -108,6 +111,8 @@ export default function App() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isSpecModalOpen, setIsSpecModalOpen] = useState(false);
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false);
+  const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
+  const [designVariant, setDesignVariant] = useState<DesignVariant>('A');
   const [currentCustomerJobId, setCurrentCustomerJobId] = useState<string>('JOB-2026-081');
 
   // State Feedback Test Mode (for demonstrating 403, 409, loading)
@@ -278,6 +283,16 @@ export default function App() {
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Tokens & Spec</span>
+            </button>
+
+            {/* Handover Export Button */}
+            <button
+              type="button"
+              onClick={() => setIsHandoverModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl border border-teal-600 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            >
+              <Archive className="w-3.5 h-3.5 text-teal-200" />
+              <span>Bàn Giao v2.1</span>
             </button>
           </div>
         </div>
@@ -472,12 +487,15 @@ export default function App() {
         {/* TAB 1: SPRINT 1 - CUSTOMERS */}
         {activeTab === 'CUSTOMERS' && (
           <CustomersView
+            currentOrg={currentOrg}
             customers={customers}
             properties={properties}
             devices={devices}
             currentUser={currentUser}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}
+            designVariant={designVariant}
+            onChangeDesignVariant={setDesignVariant}
           />
         )}
 
@@ -524,6 +542,8 @@ export default function App() {
             <TechnicianDashboard
               jobs={jobs}
               technicianName={currentUser.fullName}
+              designVariant={designVariant}
+              onChangeDesignVariant={setDesignVariant}
               onOpenDetails={(j) => {
                 setSelectedJob(j);
                 setIsDetailModalOpen(true);
@@ -698,6 +718,12 @@ export default function App() {
       <MarketplaceConceptModal
         isOpen={isMarketplaceModalOpen}
         onClose={() => setIsMarketplaceModalOpen(false)}
+      />
+
+      {/* Handover Export & Download Modal */}
+      <HandoverExportModal
+        isOpen={isHandoverModalOpen}
+        onClose={() => setIsHandoverModalOpen(false)}
       />
     </div>
   );

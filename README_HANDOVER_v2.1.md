@@ -65,7 +65,7 @@
 - **TypeScript & Linting:** Đạt 100% (`$ tsc --noEmit` &rarr; exit code 0).
 - **Compilation:** Đạt 100% (`vite build` &rarr; build succeeded).
 - **Unit Tests (`tsx --test`):** 15/15 unit test passed:
-  - `src/lib/pricing.test.ts`: 5 tests pass (chi phí máy 1, máy 2 giảm 10%, clean total, formatVND).
+  - `src/lib/pricing.test.ts`: 5 tests pass (chi phí máy đơn, nhiều máy tính thẳng không chiết khấu tùy tiện, clean total, formatVND).
   - `src/lib/status-machine.test.ts`: 5 tests pass (chuyển đổi tuần tự, hủy ca, labels chuẩn Section 7).
   - `src/lib/booking-validation.test.ts`: 5 tests pass (validate Step 1/2/3, sort theo time và emergency symptoms không phụ thuộc distance).
 
@@ -90,3 +90,23 @@ Các file ảnh đã được lưu tại `.aistudio/artifacts/computer_use/`:
 - **Khách hàng, Địa điểm, Thiết bị:** Lưu trữ cục bộ trong state React (`INITIAL_CUSTOMERS`, `INITIAL_PROPERTIES`, `INITIAL_DEVICES`).
 - **Gửi SMS OTP:** Mô phỏng qua mã cố định `123456` với bộ đếm 300s và 5 lần thử sai theo DEC-01.
 - **Payment Ledger:** Ghi nhận mảng append-only trong state và localStorage.
+
+---
+
+### 7. Tệp Xuất Xưởng & Hướng Dẫn Tải Về Trực Tiếp
+Tất cả các tệp sau đã được tạo và lưu trong thư mục `public/` của ứng dụng:
+1. **Gói ZIP Toàn Bộ Mã Nguồn:** `thoos-ui-revision-v2.1-handover.zip` (2.9 MB)
+   - Đường dẫn HTTP: `/thoos-ui-revision-v2.1-handover.zip`
+   - Chứa mã nguồn sạch (không node_modules, không secrets), toàn bộ components, tests và screenshots.
+2. **Git Bundle:** `export/thoos-sprint1-revision.bundle` (2.5 MB)
+   - Đường dẫn HTTP: `/export/thoos-sprint1-revision.bundle`
+   - Đầy đủ git history, commit SHA: `a95046932ffc87ab09a7fc7dd0691c06a6db320e`
+3. **Git Patch:** `export/sprint-1-ui-revision-v2.1.patch` (600 KB)
+   - Đường dẫn HTTP: `/export/sprint-1-ui-revision-v2.1.patch`
+
+**Lệnh đồng bộ một chạm từ máy cá nhân lên GitHub repository `vanthanh0998/Th-OS-UI-UX-Design-Brief`:**
+```bash
+git fetch /duong-dan/thoos-sprint1-revision.bundle feat/sprint-1-ui-revision-v2.1:feat/sprint-1-ui-revision-v2.1
+git checkout feat/sprint-1-ui-revision-v2.1
+git push origin feat/sprint-1-ui-revision-v2.1
+```

@@ -1,4 +1,4 @@
-import { Organization, StaffUser, Customer, Property, Device, Job } from './types';
+import { Organization, StaffUser, Customer, Property, Device, Job, BookingRequest } from './types';
 
 // ============================================================================
 // SPRINT 1 MOCK DATA: Organizations, Staff Users, Customers, Properties, Devices
@@ -70,6 +70,25 @@ export const INITIAL_STAFF_USERS: StaffUser[] = [
     active: true,
     assignedDistricts: ['Quận 7', 'Nhà Bè'],
   },
+  {
+    id: 'staff-05-bn',
+    fullName: 'Trịnh Quang Vinh',
+    phone: '0988 123 789',
+    email: 'vinh.trinh@bacnampro.vn',
+    role: 'owner',
+    organizationId: 'org-bacnam-service',
+    active: true,
+  },
+  {
+    id: 'staff-06-bn',
+    fullName: 'Vũ Đình Trọng',
+    phone: '0915 888 999',
+    email: 'trong.vu@bacnampro.vn',
+    role: 'technician',
+    organizationId: 'org-bacnam-service',
+    active: true,
+    assignedDistricts: ['Cầu Giấy', 'Ba Đình'],
+  },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
@@ -127,6 +146,20 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     devicesCount: 2,
     totalServiceOrders: 4,
   },
+  {
+    id: 'cust-05-bn',
+    organizationId: 'org-bacnam-service',
+    fullName: 'Anh Phạm Tuấn Kiệt (Hà Nội)',
+    phone: '0944 555 777',
+    email: 'tuankiet.hn@gmail.com',
+    notes: 'Khách hàng khu vực Cầu Giấy, hệ thống VRV trung tâm',
+    isArchived: false,
+    createdAt: '2026-08-01T10:00:00Z',
+    updatedAt: '2026-11-02T09:00:00Z',
+    propertiesCount: 1,
+    devicesCount: 1,
+    totalServiceOrders: 1,
+  },
 ];
 
 export const INITIAL_PROPERTIES: Property[] = [
@@ -177,6 +210,18 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'TP. Hồ Chí Minh',
     accessNotes: 'Nhà mặt hẻm thẳng, liên hệ trước 30 phút để bác mở cổng',
     createdAt: '2026-07-01T08:20:00Z',
+  },
+  {
+    id: 'prop-05-bn',
+    customerId: 'cust-05-bn',
+    organizationId: 'org-bacnam-service',
+    label: 'Văn phòng Cầu Giấy (Hà Nội)',
+    address: '88 Cầu Giấy, Phường Quan Hoa',
+    ward: 'Phường Quan Hoa',
+    district: 'Quận Cầu Giấy',
+    city: 'Hà Nội',
+    accessNotes: 'Tầng 4 tòa nhà văn phòng, bảo vệ trực 24/7',
+    createdAt: '2026-08-01T10:10:00Z',
   },
 ];
 
@@ -252,6 +297,24 @@ export const INITIAL_DEVICES: Device[] = [
     installedYear: 2023,
     lastServicedAt: '2026-09-02',
     createdAt: '2026-05-20T14:15:00Z',
+  },
+  {
+    id: 'dev-05-bn',
+    organizationId: 'org-bacnam-service',
+    customerId: 'cust-05-bn',
+    propertyId: 'prop-05-bn',
+    neutralQrCode: 'THO-OS-QR-BN001',
+    brand: 'Casper',
+    modelCode: 'QC-12IS36 (Hà Nội)',
+    serialNumber: 'CP-2024-88310',
+    horsePower: '1.5 HP',
+    airconType: 'TREO_TUONG',
+    gasType: 'R32',
+    indoorUnitLocation: 'Phòng giám đốc',
+    outdoorUnitLocation: 'Ban công tầng 4',
+    installedYear: 2024,
+    lastServicedAt: '2026-09-15',
+    createdAt: '2026-08-01T10:20:00Z',
   },
 ];
 
@@ -373,5 +436,83 @@ export const INITIAL_JOBS: Job[] = [
     photosAfter: [],
     discount: 0,
     createdAt: '2026-11-05T02:15:00Z',
+  },
+  {
+    id: 'JOB-BN-001',
+    organizationId: 'org-bacnam-service',
+    customerName: 'Anh Phạm Tuấn Kiệt (Hà Nội)',
+    customerPhone: '0944 555 777',
+    address: '88 Cầu Giấy, Phường Quan Hoa',
+    district: 'Quận Cầu Giấy',
+    scheduledTime: '09:00 - 10:30',
+    scheduledDate: 'Hôm nay',
+    airconType: 'TREO_TUONG',
+    brand: 'Casper',
+    horsePower: '1.5 HP',
+    serviceType: 'VE_SINH',
+    symptoms: ['Kém mát phòng họp'],
+    status: 'MOI',
+    paymentStatus: 'unpaid',
+    assignedTechnicianId: 'staff-06-bn',
+    technicianName: 'Vũ Đình Trọng',
+    technicianPhone: '0915 888 999',
+    checklist: {
+      drainPipeCleared: false,
+      filterCleaned: false,
+      outdoorCoilCleaned: false,
+      electricalTightened: false,
+    },
+    selectedServices: [
+      {
+        serviceId: 'VE_SINH_TREO_TUONG',
+        quantity: 1,
+        price: 150000,
+      },
+    ],
+    spareParts: [],
+    photosBefore: [],
+    photosAfter: [],
+    discount: 0,
+    createdAt: '2026-11-05T03:00:00Z',
+  },
+];
+
+// Initial mock booking requests (DEC-04 & FIX 2: Separate from jobs, status 'requested')
+export const INITIAL_BOOKING_REQUESTS: BookingRequest[] = [
+  {
+    id: 'REQ-2026-001',
+    organizationId: 'org-dienlanh-saigon',
+    customerName: 'Chị Thu Thảo',
+    customerPhone: '0909 888 777',
+    address: 'Chung cư Richmond City, 207 Nguyễn Xí',
+    district: 'Quận Bình Thạnh, TP.HCM',
+    airconType: 'TREO_TUONG',
+    brand: 'Daikin',
+    quantity: 2,
+    serviceType: 'VE_SINH',
+    symptoms: ['Chảy nước', 'Kém lạnh'],
+    preferredDate: 'Ngày mai',
+    preferredTimeSlot: '08:30 - 10:00 (Sáng)',
+    customerNotes: 'Nhà có em bé sơ sinh, vui lòng mang bạt che kỹ sàn gỗ',
+    status: 'requested',
+    createdAt: '2026-11-06T01:00:00Z',
+  },
+  {
+    id: 'REQ-2026-002',
+    organizationId: 'org-bacnam-service',
+    customerName: 'Anh Vũ Tuấn Anh',
+    customerPhone: '0982 111 333',
+    address: 'Tòa nhà Discovery Complex, 302 Cầu Giấy',
+    district: 'Quận Cầu Giấy, Hà Nội',
+    airconType: 'AM_TRAN',
+    brand: 'Panasonic',
+    quantity: 1,
+    serviceType: 'KIEM_TRA_TONG',
+    symptoms: ['Mùi ẩm mốc khi mở máy'],
+    preferredDate: 'Cuối tuần này',
+    preferredTimeSlot: '13:30 - 15:00 (Chiều)',
+    customerNotes: 'Văn phòng làm việc, cần hóa đơn VAT',
+    status: 'requested',
+    createdAt: '2026-11-06T02:00:00Z',
   },
 ];

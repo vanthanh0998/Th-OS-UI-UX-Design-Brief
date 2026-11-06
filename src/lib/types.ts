@@ -160,11 +160,14 @@ export type JobStatus =
 
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
 
+export type PaymentTransactionType = 'payment' | 'partial_payment' | 'refund' | 'adjustment';
+
 // Payment Ledger entry (Append-only per DEC-03 / ADR-0004)
 export interface PaymentLedgerEntry {
   id: string;
   jobId: string;
   amount: number;
+  type?: PaymentTransactionType;
   method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR';
   transactionRef?: string;
   recordedBy: string; // staff ID or Name
