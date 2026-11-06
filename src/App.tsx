@@ -27,6 +27,7 @@ import {
   Shield,
   RotateCcw,
   Archive,
+  Sliders,
 } from 'lucide-react';
 import {
   Job,
@@ -61,7 +62,7 @@ import { PropertiesView } from './components/properties/PropertiesView';
 import { DevicesView } from './components/devices/DevicesView';
 import { MarketplaceConceptModal } from './components/marketplace/MarketplaceConceptModal';
 import { HandoverExportModal } from './components/handover/HandoverExportModal';
-import { DesignVariant } from './components/exploration/VisualExplorationSwitcher';
+import { DemoReviewToolsModal } from './components/dev/DemoReviewToolsModal';
 import { StateFeedback } from './components/ui/StateFeedback';
 import { Button } from './components/ui/Button';
 
@@ -112,7 +113,7 @@ export default function App() {
   const [isSpecModalOpen, setIsSpecModalOpen] = useState(false);
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
-  const [designVariant, setDesignVariant] = useState<DesignVariant>('A');
+  const [isDemoToolsOpen, setIsDemoToolsOpen] = useState(false);
   const [currentCustomerJobId, setCurrentCustomerJobId] = useState<string>('JOB-2026-081');
 
   // State Feedback Test Mode (for demonstrating 403, 409, loading)
@@ -198,278 +199,139 @@ export default function App() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-24 md:pb-12 font-sans selection:bg-[#0d9488]/20 selection:text-[#0d9488]">
       {/* Offline Status Simulation Banner */}
       {isOffline && (
-        <div className="bg-amber-600 text-white px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm animate-fadeIn">
-          <WifiOff className="w-4 h-4 shrink-0" />
-          <span>
-            Chế độ ngoại tuyến: Dữ liệu đang được lưu cục bộ trên máy và sẽ tự động đồng bộ khi có mạng.
+        <div className="bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm animate-fadeIn">
+          <WifiOff className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">
+            Chế độ ngoại tuyến: Dữ liệu lưu cục bộ trên thiết bị (chờ kết nối để gửi).
           </span>
           <button
             type="button"
             onClick={() => setIsOffline(false)}
-            className="ml-2 underline text-white hover:text-amber-200"
+            className="ml-1 underline text-white hover:text-amber-200 shrink-0"
           >
-            Bật lại kết nối
+            Bật lại
           </button>
         </div>
       )}
 
-      {/* Top Application Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5 sm:px-6">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-          {/* Logo & Org Switcher */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center shadow-sm">
-              <Snowflake className="w-5 h-5" />
+      {/* Top Application Header - Streamlined Single Row */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 w-full">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 h-14 sm:h-16">
+          {/* Left: Brand & Org Switcher */}
+          <div className="flex items-center gap-2 min-w-0 shrink">
+            <div className="w-8 h-8 rounded-xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center shadow-xs shrink-0">
+              <Snowflake className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-lg text-[#0a1e3f] tracking-tight">ThợOS</span>
-                <button
-                  type="button"
-                  onClick={() => setIsSwitchOrgModalOpen(true)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 transition-colors border border-slate-200"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-teal-600" />
-                  <span className="truncate max-w-[120px] sm:max-w-[180px]">{currentOrg.name}</span>
-                  <span className="text-[10px] text-teal-700 bg-teal-100 px-1 rounded uppercase">
-                    {currentOrg.shortCode}
-                  </span>
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Hệ điều hành đội thợ điện lạnh • Sprint 1 Nền tảng Tổ chức & Tài sản
-              </p>
-            </div>
+            <span className="font-black text-base sm:text-lg text-[#0a1e3f] tracking-tight shrink-0">ThợOS</span>
+            <button
+              type="button"
+              onClick={() => setIsSwitchOrgModalOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 transition-colors border border-slate-200/80 shrink truncate"
+              title={`Đổi tổ chức: ${currentOrg.name}`}
+            >
+              <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+              <span className="hidden sm:inline truncate max-w-[120px]">{currentOrg.name}</span>
+              <span className="text-[10px] text-teal-800 bg-teal-100/80 px-1 py-0.2 rounded uppercase font-bold shrink-0">
+                {currentOrg.shortCode}
+              </span>
+            </button>
           </div>
 
-          {/* Right Controls: Staff Profile & State Testers */}
-          <div className="flex items-center gap-2">
+          {/* Center: Desktop Navigation Bar */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab('CUSTOMERS')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'CUSTOMERS'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Khách hàng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('PROPERTIES')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'PROPERTIES'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Địa điểm</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('DEVICES')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'DEVICES'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Airplay className="w-3.5 h-3.5" />
+              <span>Máy lạnh & QR</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('MEMBERS')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'MEMBERS'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Đội thợ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('TECHNICIAN_JOBS')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'TECHNICIAN_JOBS'
+                  ? 'bg-[#0a1e3f] text-white shadow-xs font-bold'
+                  : 'text-slate-700 hover:text-slate-900'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Lịch thợ</span>
+            </button>
+          </nav>
+
+          {/* Right: Staff Profile & Dedicated Demo / Review Tools Button */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs transition-all shadow-xs"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs transition-all shadow-xs"
+              title={`Người dùng: ${currentUser.fullName}`}
             >
-              <div className="w-6 h-6 rounded-lg bg-slate-100 font-bold text-slate-700 flex items-center justify-center text-[11px]">
+              <div className="w-6 h-6 rounded-lg bg-teal-50 text-teal-800 font-bold flex items-center justify-center text-xs">
                 {currentUser.fullName.charAt(0)}
               </div>
-              <div className="text-left hidden sm:block">
-                <div className="font-bold text-slate-900 leading-none">{currentUser.fullName}</div>
-                <div className="text-[10px] text-slate-400 capitalize mt-0.5 font-mono">
-                  Role: {currentUser.role}
-                </div>
-              </div>
+              <span className="font-semibold text-slate-900 hidden sm:inline">{currentUser.fullName}</span>
             </button>
 
-            {/* Offline simulator */}
+            {/* Dedicated Review Tools Button (Replaces all noisy QC toolbars) */}
             <button
               type="button"
-              onClick={() => setIsOffline(!isOffline)}
-              title="Mô phỏng ngắt kết nối mạng"
-              aria-label="Mô phỏng ngắt kết nối mạng"
-              className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${
-                isOffline
-                  ? 'bg-amber-100 border-amber-300 text-amber-700'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
+              onClick={() => setIsDemoToolsOpen(true)}
+              title="Design Review & Demo Tools"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all shadow-xs"
             >
-              {isOffline ? <WifiOff className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
-            </button>
-
-            {/* Spec button */}
-            <button
-              type="button"
-              onClick={() => setIsSpecModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 text-[#0f766e] text-xs font-bold flex items-center gap-1 transition-all"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Tokens & Spec</span>
-            </button>
-
-            {/* Handover Export Button */}
-            <button
-              type="button"
-              onClick={() => setIsHandoverModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl border border-teal-600 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-            >
-              <Archive className="w-3.5 h-3.5 text-teal-200" />
-              <span>Bàn Giao v2.1</span>
+              <Sliders className="w-3.5 h-3.5 text-teal-600" />
+              <span className="hidden sm:inline">Demo Tools</span>
             </button>
           </div>
         </div>
       </header>
-
-      {/* Main Navigation Tabs Bar */}
-      <div className="bg-white border-b border-slate-200/80 sticky top-[57px] z-30 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between overflow-x-auto no-scrollbar gap-1 py-1.5">
-          {/* SPRINT 1 PRIMARY TABS */}
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
-              Sprint 1:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('CUSTOMERS');
-                setFeedbackState('NONE');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'CUSTOMERS'
-                  ? 'bg-[#0a1e3f] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Khách hàng ({customers.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('PROPERTIES');
-                setFeedbackState('NONE');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'PROPERTIES'
-                  ? 'bg-[#0a1e3f] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span>Địa điểm ({properties.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('DEVICES');
-                setFeedbackState('NONE');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'DEVICES'
-                  ? 'bg-[#0a1e3f] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Airplay className="w-3.5 h-3.5" />
-              <span>Máy lạnh & QR ({devices.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('MEMBERS');
-                setFeedbackState('NONE');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'MEMBERS'
-                  ? 'bg-[#0a1e3f] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>Đội thợ & RBAC</span>
-            </button>
-          </div>
-
-          {/* SPRINT TIẾP THEO (Gắn nhãn rõ ràng) */}
-          <div className="flex items-center gap-1 shrink-0 pl-2 border-l border-slate-200">
-            <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded mr-1">
-              Sprint sau:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('TECHNICIAN_JOBS');
-                setFeedbackState('NONE');
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                activeTab === 'TECHNICIAN_JOBS'
-                  ? 'bg-[#0d9488] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Wrench className="w-3.5 h-3.5" />
-              <span>Lịch Thợ</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('BOOKING_FLOW');
-                setFeedbackState('NONE');
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                activeTab === 'BOOKING_FLOW'
-                  ? 'bg-[#0d9488] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Đặt Lịch</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('CUSTOMER_TRACKING');
-                setFeedbackState('NONE');
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                activeTab === 'CUSTOMER_TRACKING'
-                  ? 'bg-[#0d9488] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Theo dõi</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsMarketplaceModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Marketplace Concept</span>
-              <span className="text-[9px] bg-amber-200/80 px-1 rounded font-mono font-bold">FUTURE</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* State Feedback Selector Toolbar (for QC and Verification) */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-3 flex items-center justify-between text-xs text-slate-500">
-        <span className="font-semibold">Kiểm tra State Design (Sprint 1):</span>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setFeedbackState(feedbackState === '403_FORBIDDEN' ? 'NONE' : '403_FORBIDDEN')}
-            className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${
-              feedbackState === '403_FORBIDDEN' ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-white border-slate-200'
-            }`}
-          >
-            403 No Permission
-          </button>
-          <button
-            type="button"
-            onClick={() => setFeedbackState(feedbackState === '409_CONFLICT' ? 'NONE' : '409_CONFLICT')}
-            className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${
-              feedbackState === '409_CONFLICT' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-white border-slate-200'
-            }`}
-          >
-            409 Conflict
-          </button>
-          <button
-            type="button"
-            onClick={() => setFeedbackState(feedbackState === 'SKELETON_LOADING' ? 'NONE' : 'SKELETON_LOADING')}
-            className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${
-              feedbackState === 'SKELETON_LOADING' ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-white border-slate-200'
-            }`}
-          >
-            Skeleton Loading
-          </button>
-        </div>
-      </div>
 
       {/* Main Content Area */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-4">
@@ -494,8 +356,6 @@ export default function App() {
             currentUser={currentUser}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}
-            designVariant={designVariant}
-            onChangeDesignVariant={setDesignVariant}
           />
         )}
 
@@ -532,30 +392,22 @@ export default function App() {
           />
         )}
 
-        {/* TAB 5: SPRINT TIẾP THEO - TECHNICIAN JOBS */}
+        {/* TAB 5: TECHNICIAN DASHBOARD */}
         {activeTab === 'TECHNICIAN_JOBS' && (
-          <div>
-            <div className="mb-3 p-3 bg-teal-50 rounded-2xl border border-teal-200 flex items-center justify-between text-xs text-teal-900">
-              <span className="font-bold">Lưu ý nghiệp vụ: Màn hình Vận hành Dịch vụ thuộc Sprint sau (Đã chuẩn hóa DEC-03 & ETA-001)</span>
-              <span className="text-[11px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-mono">Future Sprint Scope</span>
-            </div>
-            <TechnicianDashboard
-              jobs={jobs}
-              technicianName={currentUser.fullName}
-              designVariant={designVariant}
-              onChangeDesignVariant={setDesignVariant}
-              onOpenDetails={(j) => {
-                setSelectedJob(j);
-                setIsDetailModalOpen(true);
-              }}
-              onQuickAction={handleQuickAction}
-              onOpenInvoice={(j) => {
-                setInvoiceJob(j);
-                setIsInvoiceModalOpen(true);
-              }}
-              onCreateJobRequest={() => setActiveTab('BOOKING_FLOW')}
-            />
-          </div>
+          <TechnicianDashboard
+            jobs={jobs}
+            technicianName={currentUser.fullName}
+            onOpenDetails={(j) => {
+              setSelectedJob(j);
+              setIsDetailModalOpen(true);
+            }}
+            onQuickAction={handleQuickAction}
+            onOpenInvoice={(j) => {
+              setInvoiceJob(j);
+              setIsInvoiceModalOpen(true);
+            }}
+            onCreateJobRequest={() => setActiveTab('BOOKING_FLOW')}
+          />
         )}
 
         {/* TAB 6: SPRINT TIẾP THEO - BOOKING FLOW */}
@@ -724,6 +576,21 @@ export default function App() {
       <HandoverExportModal
         isOpen={isHandoverModalOpen}
         onClose={() => setIsHandoverModalOpen(false)}
+      />
+
+      {/* Dedicated Demo & Review Tools Modal */}
+      <DemoReviewToolsModal
+        isOpen={isDemoToolsOpen}
+        onClose={() => setIsDemoToolsOpen(false)}
+        feedbackState={feedbackState}
+        onSetFeedbackState={setFeedbackState}
+        isOffline={isOffline}
+        onToggleOffline={() => setIsOffline(!isOffline)}
+        onOpenSpecModal={() => setIsSpecModalOpen(true)}
+        onOpenMarketplaceModal={() => setIsMarketplaceModalOpen(true)}
+        onOpenHandoverModal={() => setIsHandoverModalOpen(true)}
+        onOpenSwitchOrgModal={() => setIsSwitchOrgModalOpen(true)}
+        currentOrg={currentOrg}
       />
     </div>
   );
