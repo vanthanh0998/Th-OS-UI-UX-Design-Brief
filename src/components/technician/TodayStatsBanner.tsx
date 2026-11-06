@@ -21,12 +21,12 @@ export const TodayStatsBanner: React.FC<TodayStatsBannerProps> = ({
   const completedJobs = todayJobs.filter((j) => j.status === 'HOAN_THANH');
   const pendingJobs = todayJobs.filter((j) => j.status === 'MOI');
 
-  // Ước tính thu nhập của thợ hôm nay từ các đơn đã xong và đang làm
-  const estimatedEarnings = todayJobs.reduce((sum, job) => {
+  // Tổng giá trị dịch vụ của các ca hôm nay
+  const totalServicesValue = todayJobs.reduce((sum, job) => {
     if (job.status === 'DA_HUY') return sum;
     const servicesTotal = job.selectedServices.reduce((s, item) => s + item.price * item.quantity, 0);
     const partsTotal = job.spareParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0);
-    return sum + Math.round(servicesTotal * 0.75 + partsTotal * 0.3);
+    return sum + (servicesTotal + partsTotal);
   }, 0);
 
   return (
@@ -84,12 +84,12 @@ export const TodayStatsBanner: React.FC<TodayStatsBannerProps> = ({
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
           <div className="text-slate-300 text-[11px] font-medium flex items-center gap-1 mb-1">
             <DollarSign className="w-3 h-3 text-emerald-300" />
-            <span>Thu nhập</span>
+            <span>Doanh số ca</span>
           </div>
           <div className="text-base font-black text-emerald-300 truncate">
-            {formatVND(estimatedEarnings)}
+            {formatVND(totalServicesValue)}
           </div>
-          <div className="text-[10px] text-emerald-200 mt-0.5">Tạm tính hôm nay</div>
+          <div className="text-[10px] text-emerald-200 mt-0.5">Tổng giá trị hôm nay</div>
         </div>
       </div>
 

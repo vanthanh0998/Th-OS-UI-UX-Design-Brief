@@ -81,10 +81,10 @@ export function validateBookingStep3(values: Partial<BookingFormValues>): Valida
   };
 }
 
-// Hàm sắp xếp công việc cho thợ: Theo thời gian hoặc theo mức ưu tiên
-export function sortJobs<T extends { scheduledTime: string; distanceKm: number; status: string; symptoms?: string[] }>(
+// Sắp xếp công việc cho thợ: Theo thời gian hẹn hoặc mức ưu tiên kỹ thuật
+export function sortJobs<T extends { scheduledTime: string; status: string; symptoms?: string[] }>(
   jobs: T[],
-  sortBy: 'TIME' | 'PRIORITY' | 'DISTANCE'
+  sortBy: 'TIME' | 'PRIORITY'
 ): T[] {
   return [...jobs].sort((a, b) => {
     // Luôn ưu tiên công việc đang diễn ra lên trước
@@ -98,17 +98,16 @@ export function sortJobs<T extends { scheduledTime: string; distanceKm: number; 
     if (a.status === 'HOAN_THANH' && b.status !== 'HOAN_THANH') return 1;
     if (a.status !== 'HOAN_THANH' && b.status === 'HOAN_THANH') return -1;
 
-    if (sortBy === 'DISTANCE') {
-      return a.distanceKm - b.distanceKm;
-    }
-
     if (sortBy === 'PRIORITY') {
-      // Ưu tiên ca có triệu chứng chảy nước, chập điện hoặc khoảng cách gần
-      const aIsEmergency = (a.symptoms || []).some(s => s.toLowerCase().includes('chảy nước') || s.toLowerCase().includes('không mát'));
-      const bIsEmergency = (b.symptoms || []).some(s => s.toLowerCase().includes('chảy nước') || s.toLowerCase().includes('không mát'));
+      // Ưu tiên ca có triệu chứng chảy nước, không mát hoặc chập điện
+      const aIsEmergency = (a.symptoms || []).some(
+        (s) => s.toLowerCase().includes('chảy nước') || s.toLowerCase().includes('không mát')
+      );
+      const bIsEmergency = (b.symptoms || []).some(
+        (s) => s.toLowerCase().includes('chảy nước') || s.toLowerCase().includes('không mát')
+      );
       if (aIsEmergency && !bIsEmergency) return -1;
       if (!aIsEmergency && bIsEmergency) return 1;
-      return a.distanceKm - b.distanceKm;
     }
 
     // Mặc định: theo khung giờ hẹn (chuỗi "08:30 - ...")

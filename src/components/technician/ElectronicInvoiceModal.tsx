@@ -33,7 +33,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   if (!job) return null;
 
   const [paymentType, setPaymentType] = useState<'CHUYEN_KHOAN_QR' | 'TIEN_MAT'>('CHUYEN_KHOAN_QR');
-  const [isPaidSuccess, setIsPaidSuccess] = useState(job.paymentMethod !== 'CHUA_THANH_TOAN');
+  const [isPaidSuccess, setIsPaidSuccess] = useState(job.paymentStatus === 'paid');
 
   const pricing = calculateJobTotal(job.selectedServices, job.spareParts, job.discount);
 
@@ -51,8 +51,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Phiếu Thu & Bảo Hành Điện Tử"
-      subtitle={`Mã biên nhận: #${job.id}`}
+      title="Sổ Cái Thu Tiền (Payment Ledger - DEC-03)"
+      subtitle={`Ghi nhận phiếu thu cho ca #${job.id} • Trạng thái công việc: Đã hoàn tất`}
       maxWidth="md"
     >
       <div className="space-y-4">
@@ -178,7 +178,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         {isPaidSuccess ? (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            Đã thanh toán thành công & Lưu bảo hành điện tử
+            Đã ghi nhận giao dịch vào Sổ cái thanh toán (Payment Ledger DEC-03)
           </div>
         ) : (
           <Button
@@ -188,7 +188,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             onClick={handleComplete}
           >
             <CheckCircle2 className="w-5 h-5 mr-1" />
-            Xác nhận khách đã thanh toán ({formatVND(pricing.totalPayable)})
+            Ghi nhận thu tiền vào sổ cái ({formatVND(pricing.totalPayable)})
           </Button>
         )}
       </div>

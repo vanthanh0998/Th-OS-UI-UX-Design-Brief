@@ -12,13 +12,13 @@ test('calculateBaseServiceCost calculates cassette / ceiling aircon cleaning cor
   assert.equal(cost, 350000);
 });
 
-test('calculateBaseServiceCost applies 10% discount on additional units for multi-machine bookings', () => {
-  // 1st unit: 150k, 2nd unit: 150k * 0.9 = 135k => Total: 285k
+test('calculateBaseServiceCost calculates multi-machine bookings accurately without arbitrary discounts', () => {
+  // 2 units wall aircon: 150k * 2 = 300k
   const cost = calculateBaseServiceCost('VE_SINH', 'TREO_TUONG', 2);
-  assert.equal(cost, 285000);
+  assert.equal(cost, 300000);
 });
 
-test('calculateJobTotal calculates subtotal, discount, and technician commission', () => {
+test('calculateJobTotal calculates subtotal, parts, discount and net total correctly', () => {
   const services = [{ price: 150000, quantity: 2 }]; // 300,000đ
   const spareParts = [
     { id: 'p1', name: 'Tụ đề Block', unitPrice: 280000, unit: 'cái', quantity: 1, warrantyMonths: 6 },
@@ -31,9 +31,6 @@ test('calculateJobTotal calculates subtotal, discount, and technician commission
   assert.equal(res.subtotalParts, 280000);
   assert.equal(res.discountAmount, 30000);
   assert.equal(res.totalPayable, 550000); // 300k + 280k - 30k = 550k
-
-  // Tech payout: 300k * 0.75 (225k) + 280k * 0.3 (84k) = 309,000đ
-  assert.equal(res.technicianPayout, 309000);
 });
 
 test('formatVND formats Vietnamese currency strings properly', () => {

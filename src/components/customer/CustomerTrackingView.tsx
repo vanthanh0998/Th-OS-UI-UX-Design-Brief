@@ -65,13 +65,17 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
             </div>
           </div>
 
-          <a
-            href={`tel:${job.technicianPhone.replace(/\s+/g, '')}`}
-            className="px-3.5 py-2 rounded-xl bg-[#0d9488] hover:bg-[#0f766e] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
-          >
-            <Phone className="w-3.5 h-3.5" />
-            Gọi Thợ
-          </a>
+          {job.technicianPhone ? (
+            <a
+              href={`tel:${job.technicianPhone.replace(/\s+/g, '')}`}
+              className="px-3.5 py-2 rounded-xl bg-[#0d9488] hover:bg-[#0f766e] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              Gọi Thợ
+            </a>
+          ) : (
+            <span className="text-[11px] text-slate-400 italic">Đang phân công</span>
+          )}
         </div>
       </div>
 

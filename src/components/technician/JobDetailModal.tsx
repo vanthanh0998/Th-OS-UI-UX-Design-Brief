@@ -178,7 +178,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
             <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
               <span>{job.customerPhone}</span>
               <span className="text-slate-300">•</span>
-              <span className="text-[#0d9488] font-semibold">{job.distanceKm} km</span>
+              <span className="text-slate-500 font-semibold">{job.district}</span>
             </div>
             <p className="text-xs text-slate-700 mt-1.5 leading-snug">
               {job.address}, {job.district}
@@ -281,7 +281,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                   onClick={() => handleStatusTransition('DANG_TOI')}
                 >
                   <Navigation className="w-5 h-5 mr-1" />
-                  Nhận đơn & Bắt đầu đi ({job.distanceKm} km)
+                  Nhận ca & Bấm đang đến (ETA-001)
                 </Button>
               )}
 
@@ -364,16 +364,15 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
           {/* Quick Pricing Glance */}
           <div className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between">
             <div>
-              <div className="text-xs text-slate-400">Tổng tiền thu khách:</div>
+              <div className="text-xs text-slate-400">Tổng tiền dự kiến theo dịch vụ:</div>
               <div className="text-xl font-black text-[#14b8a6]">
                 {formatVND(pricing.totalPayable)}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-slate-400">Thợ thực nhận:</div>
-              <div className="text-sm font-bold text-emerald-400">
-                {formatVND(pricing.technicianPayout)}
-              </div>
+              <span className="text-[10px] font-bold text-teal-300 bg-teal-900/50 px-2 py-1 rounded border border-teal-500/30">
+                Thanh toán qua Sổ Cái (DEC-03)
+              </span>
             </div>
           </div>
         </div>

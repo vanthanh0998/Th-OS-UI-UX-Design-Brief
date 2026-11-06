@@ -76,8 +76,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const estimatedCost = calculateBaseServiceCost(serviceType, airconType, quantity);
-  const discountAmount = quantity > 1 ? 25000 : 0;
-  const finalTotal = Math.max(0, estimatedCost - discountAmount);
+  const discountAmount = 0;
+  const finalTotal = estimatedCost;
 
   // Helper trigger feedback notice
   const notifyStepSuccess = (msg: string) => {
@@ -134,12 +134,12 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
 
   const handleConfirmFinalBooking = () => {
     const newJob: Job = {
-      id: `JOB-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+      id: `REQ-${Date.now().toString().slice(-6)}`,
+      organizationId: 'org-dienlanh-saigon',
       customerName,
       customerPhone,
       address,
       district,
-      distanceKm: Math.round((1.2 + Math.random() * 3.5) * 10) / 10,
       scheduledTime,
       scheduledDate,
       airconType,
@@ -148,9 +148,11 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
       serviceType,
       symptoms,
       customerNotes: urgencyLevel === 'URGENT' ? `[CẦN GẤP TRONG 60 PHÚT] ${customerNotes}` : customerNotes,
-      status: 'MOI',
-      technicianName: 'Trần Văn Hùng (Thợ chính)',
-      technicianPhone: '0938 789 123',
+      status: 'MOI', // Trạng thái requested (chờ điều phối viên xác nhận lịch)
+      paymentStatus: 'unpaid',
+      assignedTechnicianId: undefined, // DEC-04: Tuyệt đối không tự động gán thợ
+      technicianName: 'Chờ điều phối chỉ định thợ',
+      technicianPhone: '1900 8888',
       checklist: {
         drainPipeCleared: false,
         filterCleaned: false,
@@ -168,7 +170,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
       photosBefore: [],
       photosAfter: [],
       discount: discountAmount,
-      paymentMethod: 'CHUA_THANH_TOAN',
       createdAt: new Date().toISOString(),
     };
 
@@ -176,24 +177,24 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
     onJobCreated(newJob);
   };
 
-  // SUCCESS CONFIRMATION VIEW
+  // SUCCESS CONFIRMATION VIEW (DEC-04: Booking requested, awaiting dispatch confirmation)
   if (createdJobData) {
     return (
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md p-6 sm:p-8 max-w-xl mx-auto text-center animate-fadeIn">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 animate-bounce">
-          <CheckCircle2 className="w-9 h-9" />
+        <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-8 h-8" />
         </div>
 
-        <Badge variant="success" className="mb-2">
-          ĐẶT LỊCH THÀNH CÔNG • MÃ #{createdJobData.id}
+        <Badge variant="navy" className="mb-2">
+          ĐÃ GỬI YÊU CẦU • MÃ #{createdJobData.id}
         </Badge>
 
         <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-          ThợOS Đã Tiếp Nhận Lịch Hẹn!
+          Đã Tiếp Nhận Yêu Cầu Đặt Lịch!
         </h3>
-        <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto">
-          Thợ chính <strong className="text-slate-800">{createdJobData.technicianName}</strong> đang xem đơn và sẽ gọi xác nhận qua số{' '}
-          <strong className="text-[#0d9488]">{createdJobData.customerPhone}</strong> trước khi xuất phát.
+        <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+          Theo quy tắc <strong>DEC-04</strong>, yêu cầu đặt lịch của bạn đang ở trạng thái <em>requested</em> (chưa giữ lịch chính thức). Điều phối viên của đội thợ sẽ kiểm tra xung đột thời gian và liên hệ số{' '}
+          <strong className="text-[#0d9488]">{createdJobData.customerPhone}</strong> để xác nhận lịch và chỉ định thợ.
         </p>
 
         {/* Order Card Preview */}
@@ -225,11 +226,11 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
           <a
-            href={`tel:${createdJobData.technicianPhone.replace(/\s+/g, '')}`}
+            href={`tel:${(createdJobData.technicianPhone || '19008888').replace(/\s+/g, '')}`}
             className="flex-1 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all"
           >
             <Phone className="w-4 h-4 text-[#0d9488]" />
-            Gọi Thợ {createdJobData.technicianPhone}
+            Hotline Đội Thợ {createdJobData.technicianPhone || '1900 8888'}
           </a>
           <Button
             variant="teal"
@@ -860,13 +861,13 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
             </div>
           </div>
 
-          {/* Cam kết bảo hành */}
+          {/* Quy chuẩn chất lượng & cam kết */}
           <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-200 text-xs text-teal-900 flex items-start gap-2.5">
             <ShieldCheck className="w-5 h-5 text-[#0d9488] shrink-0 mt-0.5" />
             <div>
-              <div className="font-bold">Cam kết vàng từ ThợOS:</div>
+              <div className="font-bold">Quy chuẩn dịch vụ ThợOS:</div>
               <p className="text-[11px] text-teal-800 mt-0.5">
-                Bảo hành dịch vụ 3 - 6 tháng. Thợ có lý lịch xác minh, trang thiết bị chuyên dụng và chỉ nhận thanh toán khi bạn hài lòng với độ lạnh buốt của máy.
+                Kỹ thuật viên chuyên nghiệp, báo giá minh bạch theo từng phiên bản (QUO-001) và chỉ nhận thanh toán khi bạn đã kiểm tra và nghiệm thu độ lạnh. Thời hạn bảo hành được ghi nhận cụ thể theo từng hạng mục dịch vụ và linh kiện.
               </p>
             </div>
           </div>

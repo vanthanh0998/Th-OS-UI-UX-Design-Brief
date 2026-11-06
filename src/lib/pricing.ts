@@ -1,6 +1,6 @@
 import { AirconType, ServiceType, SparePartItem } from './types';
 
-// Bảng giá cơ sở tiêu chuẩn ngành điện lạnh
+// Bảng giá cơ sở dịch vụ kỹ thuật tiêu chuẩn
 export const SERVICE_CATALOG = [
   {
     id: 'VE_SINH_TREO_TUONG',
@@ -48,7 +48,7 @@ export const SERVICE_CATALOG = [
   {
     id: 'THAY_TU_QUAT_BLOCK',
     name: 'Thay tụ kích khởi động quạt / Block',
-    description: 'Thay linh kiện chính hãng, bảo hành 6 tháng',
+    description: 'Thay linh kiện chính hãng, bảo hành theo tem linh kiện',
     basePrice: 300000,
     unit: 'cái',
     estimatedMinutes: 35,
@@ -90,15 +90,12 @@ export function calculateBaseServiceCost(
     unitRate = 80000;
   }
 
-  // Khuyến mãi số lượng: từ máy thứ 2 trở đi giảm 10% phí dịch vụ cơ sở
-  if (quantity > 1) {
-    const firstMachine = unitRate;
-    const additionalMachines = (quantity - 1) * unitRate * 0.9;
-    return Math.round(firstMachine + additionalMachines);
-  }
   return unitRate * quantity;
 }
 
+/**
+ * Tính toán tổng chi phí đơn dịch vụ (độc lập, không chứa công thức hoa hồng tự chế)
+ */
 export function calculateJobTotal(
   services: { price: number; quantity: number }[],
   spareParts: SparePartItem[],
@@ -108,7 +105,6 @@ export function calculateJobTotal(
   subtotalParts: number;
   discountAmount: number;
   totalPayable: number;
-  technicianPayout: number; // 70% dịch vụ + 100% linh kiện sau khi trừ vốn linh kiện ước tính
 } {
   const subtotalServices = services.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const subtotalParts = spareParts.reduce((sum, item) => sum + item.unitPrice * (item.quantity || 1), 0);
@@ -116,15 +112,11 @@ export function calculateJobTotal(
   const gross = subtotalServices + subtotalParts;
   const totalPayable = Math.max(0, gross - discountAmount);
 
-  // Thợ nhận 75% phí công dịch vụ + 25% hoa hồng trên linh kiện bán thêm
-  const technicianPayout = Math.round(subtotalServices * 0.75 + subtotalParts * 0.3);
-
   return {
     subtotalServices,
     subtotalParts,
     discountAmount,
     totalPayable,
-    technicianPayout,
   };
 }
 

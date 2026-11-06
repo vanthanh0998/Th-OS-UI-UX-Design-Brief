@@ -61,11 +61,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
   );
   const completedJobs = todayJobs.filter((j) => j.status === 'HOAN_THANH');
 
-  const totalEarningsToday = todayJobs.reduce((sum, job) => {
+  const totalValueToday = todayJobs.reduce((sum, job) => {
     if (job.status === 'DA_HUY') return sum;
     const servicesTotal = job.selectedServices.reduce((s, item) => s + item.price * item.quantity, 0);
     const partsTotal = job.spareParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0);
-    return sum + Math.round(servicesTotal * 0.75 + partsTotal * 0.3);
+    return sum + (servicesTotal + partsTotal);
   }, 0);
 
   // Spotlight Next Job: Ca đang thực hiện hoặc ca sắp tới gần nhất
@@ -75,7 +75,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
     todayJobs[0];
 
   // Apply sorting and filtering
-  const sortedAllJobs = sortJobs(todayJobs, sortMode);
+  const sortedAllJobs = sortJobs<Job>(todayJobs, sortMode);
 
   const displayedJobs = sortedAllJobs.filter((job) => {
     // Search filter
@@ -207,12 +207,12 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
             <div className="text-slate-300 text-[10px] font-medium flex items-center gap-1">
               <DollarSign className="w-3 h-3 text-emerald-300" />
-              <span>Thu nhập</span>
+              <span>Giá trị ca</span>
             </div>
             <div className="text-base font-black text-emerald-300 mt-0.5 truncate">
-              {formatVND(totalEarningsToday)}
+              {formatVND(totalValueToday)}
             </div>
-            <div className="text-[10px] text-emerald-200 mt-0.5">Tạm tính hôm nay</div>
+            <div className="text-[10px] text-emerald-200 mt-0.5">Tổng giá trị hôm nay</div>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                 <Clock className="w-3.5 h-3.5 text-[#0d9488]" />
                 <span className="font-bold text-slate-800">{nextSpotlightJob.scheduledTime}</span>
                 <span className="text-slate-300">•</span>
-                <span className="text-[#0d9488] font-bold">Cách {nextSpotlightJob.distanceKm} km</span>
+                <span className="text-slate-500 font-medium">{nextSpotlightJob.district}</span>
               </div>
               <p className="text-xs text-slate-600 mt-1 line-clamp-1">
                 {nextSpotlightJob.address}, {nextSpotlightJob.district}
@@ -416,7 +416,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
                       <Clock className="w-3.5 h-3.5 text-[#0d9488]" />
                       <span>{job.scheduledTime}</span>
-                      <span className="text-slate-400 font-normal ml-1">({job.distanceKm} km)</span>
+                      <span className="text-slate-400 font-normal ml-1">({job.scheduledDate})</span>
                     </div>
                   </div>
 

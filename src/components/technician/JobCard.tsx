@@ -30,9 +30,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onOpenDetails, onQuickAct
   const getStatusBadge = () => {
     switch (job.status) {
       case 'MOI':
-        return <Badge variant="navy">Đơn mới</Badge>;
+        return <Badge variant="navy">Chờ nhận ca</Badge>;
       case 'DANG_TOI':
-        return <Badge variant="warning">Đang tới (còn {job.distanceKm} km)</Badge>;
+        return <Badge variant="warning">Đang đến (cập nhật thủ công)</Badge>;
       case 'DANG_KIEM_TRA':
         return <Badge variant="teal">Đang kiểm tra máy</Badge>;
       case 'BAO_GIA':

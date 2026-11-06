@@ -12,45 +12,46 @@ export interface StatusMeta {
   nextActionLabel?: string;
 }
 
+// Bảng trạng thái chuẩn hóa theo Section 7 Microcopy
 export const STATUS_MAP: Record<JobStatus, StatusMeta> = {
   MOI: {
     status: 'MOI',
-    label: 'Chờ tiếp nhận',
-    shortLabel: 'Đơn mới',
-    description: 'Khách vừa đặt lịch, cần thợ nhận đơn và chuẩn bị đồ nghề',
+    label: 'Chờ tiếp nhận ca',
+    shortLabel: 'Chờ nhận ca',
+    description: 'Ca làm việc đã được điều phối phân công cho kỹ thuật viên',
     colorClass: 'border-blue-500 bg-blue-50 text-blue-700',
     badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
-    badgeText: 'Đơn Mới',
+    badgeText: 'Chờ nhận ca',
     nextStatus: 'DANG_TOI',
-    nextActionLabel: 'Nhận việc & Xuất phát',
+    nextActionLabel: 'Xác nhận & Bấm đang đến',
   },
   DANG_TOI: {
     status: 'DANG_TOI',
-    label: 'Đang di chuyển',
-    shortLabel: 'Đang tới',
-    description: 'Thợ đang trên đường đến địa chỉ nhà khách',
+    label: 'Thợ đang trên đường đến',
+    shortLabel: 'Đang đến',
+    description: 'Kỹ thuật viên đã cập nhật thủ công trạng thái di chuyển (ETA-001)',
     colorClass: 'border-amber-500 bg-amber-50 text-amber-700',
     badgeBg: 'bg-amber-100 text-amber-800 border-amber-200',
-    badgeText: 'Đang tới',
+    badgeText: 'Đang đến',
     nextStatus: 'DANG_KIEM_TRA',
-    nextActionLabel: 'Đã tới nơi & Kiểm tra máy',
+    nextActionLabel: 'Đã đến nơi & Bắt đầu kiểm tra',
   },
   DANG_KIEM_TRA: {
     status: 'DANG_KIEM_TRA',
-    label: 'Đang kiểm tra máy',
-    shortLabel: 'Kiểm tra',
-    description: 'Đang đo ampe kìm, áp suất gas, kiểm tra dàn nóng/lạnh',
+    label: 'Đang kiểm tra kỹ thuật',
+    shortLabel: 'Kiểm tra máy',
+    description: 'Đang đo ampe kìm, áp gas, nhiệt độ cửa gió và tình trạng máy',
     colorClass: 'border-cyan-500 bg-cyan-50 text-cyan-800',
     badgeBg: 'bg-cyan-100 text-cyan-800 border-cyan-200',
     badgeText: 'Đang kiểm tra',
     nextStatus: 'BAO_GIA',
-    nextActionLabel: 'Chốt lỗi & Báo giá khách',
+    nextActionLabel: 'Lập báo giá theo phiên bản (QUO-001)',
   },
   BAO_GIA: {
     status: 'BAO_GIA',
-    label: 'Chờ khách duyệt giá',
-    shortLabel: 'Báo giá',
-    description: 'Đã báo giá chi tiết, chờ khách đồng ý phương án xử lý',
+    label: 'Chờ khách duyệt báo giá',
+    shortLabel: 'Chờ duyệt giá',
+    description: 'Báo giá đã gửi theo mã Revision bất biến, chờ xác nhận từ khách',
     colorClass: 'border-purple-500 bg-purple-50 text-purple-700',
     badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
     badgeText: 'Chờ duyệt giá',
@@ -59,29 +60,29 @@ export const STATUS_MAP: Record<JobStatus, StatusMeta> = {
   },
   DANG_SUA: {
     status: 'DANG_SUA',
-    label: 'Đang vệ sinh / Sửa chữa',
+    label: 'Đang thực hiện dịch vụ',
     shortLabel: 'Đang làm',
-    description: 'Đang xịt rửa áp lực cao, thay linh kiện hoặc nạp gas',
+    description: 'Đang tiến hành vệ sinh áp lực, nạp gas hoặc thay thế linh kiện',
     colorClass: 'border-teal-500 bg-teal-50 text-teal-800',
     badgeBg: 'bg-teal-100 text-teal-800 border-teal-200',
     badgeText: 'Đang làm việc',
     nextStatus: 'HOAN_THANH',
-    nextActionLabel: 'Nghiệm thu & Thu tiền',
+    nextActionLabel: 'Hoàn tất kỹ thuật & Bàn giao',
   },
   HOAN_THANH: {
     status: 'HOAN_THANH',
-    label: 'Đã hoàn tất',
-    shortLabel: 'Đã xong',
-    description: 'Khách đã nghiệm thu độ lạnh, đã thu tiền và kích hoạt bảo hành',
+    label: 'Công việc đã hoàn thành',
+    shortLabel: 'Đã hoàn thành',
+    description: 'Biên bản kỹ thuật đã nghiệm thu (Thanh toán được ghi nhận riêng qua sổ cái DEC-03)',
     colorClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
     badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    badgeText: 'Hoàn thành',
+    badgeText: 'Đã hoàn thành',
   },
   DA_HUY: {
     status: 'DA_HUY',
-    label: 'Đã hủy',
-    shortLabel: 'Hủy',
-    description: 'Đơn đã bị hủy theo yêu cầu',
+    label: 'Đã hủy lịch hẹn',
+    shortLabel: 'Đã hủy',
+    description: 'Lịch hẹn đã bị hủy',
     colorClass: 'border-slate-300 bg-slate-100 text-slate-500',
     badgeBg: 'bg-slate-100 text-slate-600 border-slate-200',
     badgeText: 'Đã hủy',
@@ -106,7 +107,6 @@ export function canTransitionTo(current: JobStatus, target: JobStatus): boolean 
   const targetIndex = ORDERED_STATUSES.indexOf(target);
 
   if (currentIndex === -1 || targetIndex === -1) return false;
-  // Cho phép chuyển tiếp tới bước liền kề hoặc quay lại 1 bước để chỉnh sửa báo giá
   return targetIndex === currentIndex + 1 || (currentIndex === 3 && targetIndex === 2);
 }
 

@@ -27,7 +27,8 @@ test('getNextStatus returns valid step sequence', () => {
   assert.equal(getNextStatus('HOAN_THANH'), null);
 });
 
-test('STATUS_MAP contains correct labels for all statuses', () => {
-  assert.equal(STATUS_MAP.MOI.shortLabel, 'Đơn mới');
-  assert.equal(STATUS_MAP.HOAN_THANH.shortLabel, 'Đã xong');
+test('STATUS_MAP contains correct standardized labels', () => {
+  assert.equal(STATUS_MAP.MOI.shortLabel, 'Chờ nhận ca');
+  assert.equal(STATUS_MAP.DANG_TOI.label, 'Thợ đang trên đường đến');
+  assert.equal(STATUS_MAP.HOAN_THANH.shortLabel, 'Đã hoàn thành');
 });
