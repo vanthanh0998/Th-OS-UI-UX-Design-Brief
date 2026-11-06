@@ -4,192 +4,371 @@ import {
   ShieldCheck,
   QrCode,
   DollarSign,
-  Share2,
-  Printer,
-  Sparkles,
-  Phone,
-  Calendar,
+  AlertCircle,
+  RotateCcw,
+  Receipt,
+  Clock,
+  History,
 } from 'lucide-react';
-import { Job } from '../../lib/types';
+import { Job, StaffUser, PaymentTransactionType } from '../../lib/types';
 import { calculateJobTotal, formatVND } from '../../lib/pricing';
+import {
+  calculateTotalPaid,
+  computePaymentStatusFromLedger,
+  canRecordPayment,
+} from '../../lib/payment-ledger';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-
 import { VietQRCode } from '../ui/VietQRCode';
 
 interface ElectronicInvoiceModalProps {
   job: Job | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirmPayment: (jobId: string, method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR') => void;
+  currentUser: StaffUser;
+  onConfirmPayment: (
+    jobId: string,
+    amount: number,
+    method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR',
+    type?: PaymentTransactionType,
+    notes?: string
+  ) => void;
 }
 
 export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   job,
   isOpen,
   onClose,
+  currentUser,
   onConfirmPayment,
 }) => {
   if (!job) return null;
 
   const [paymentType, setPaymentType] = useState<'CHUYEN_KHOAN_QR' | 'TIEN_MAT'>('CHUYEN_KHOAN_QR');
-  const [isPaidSuccess, setIsPaidSuccess] = useState(job.paymentStatus === 'paid');
+  const [actionType, setActionType] = useState<'FULL' | 'PARTIAL' | 'REFUND'>('FULL');
+  const [customAmount, setCustomAmount] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const pricing = calculateJobTotal(job.selectedServices, job.spareParts, job.discount);
+  const totalPaid = calculateTotalPaid(job.paymentEntries);
+  const remainingAmount = Math.max(0, pricing.totalPayable - totalPaid);
+  const currentStatus = computePaymentStatusFromLedger(pricing.totalPayable, job.paymentEntries);
 
-  // Tạo URL VietQR chuẩn
-  const qrUrl = `https://api.vietqr.io/image/970436-0938789123-compact2.png?amount=${pricing.totalPayable}&addInfo=${encodeURIComponent(
-    `ThoOS ${job.id}`
-  )}&accountName=${encodeURIComponent('TRAN VAN HUNG')}`;
+  // RBAC Permission Check
+  const perm = canRecordPayment(currentUser, job);
+
+  // Amount to be transacted based on selected mode
+  const getTransactionAmount = (): number => {
+    if (actionType === 'FULL') return remainingAmount;
+    const parsed = parseInt(customAmount.replace(/\D/g, ''), 10);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   const handleComplete = () => {
-    onConfirmPayment(job.id, paymentType);
-    setIsPaidSuccess(true);
+    setErrorMessage('');
+
+    if (!perm.allowed) {
+      setErrorMessage(perm.reason || 'Bạn không có quyền thực hiện thao tác thu tiền này.');
+      return;
+    }
+
+    const amount = getTransactionAmount();
+    if (amount <= 0) {
+      setErrorMessage('Số tiền giao dịch phải lớn hơn 0 ₫.');
+      return;
+    }
+
+    if (actionType === 'PARTIAL' && amount > remainingAmount) {
+      setErrorMessage(`Số tiền thu một phần không được vượt quá số tiền còn lại (${formatVND(remainingAmount)}).`);
+      return;
+    }
+
+    if (actionType === 'REFUND' && amount > totalPaid) {
+      setErrorMessage(`Số tiền hoàn trả không được vượt quá số tiền đã thu (${formatVND(totalPaid)}).`);
+      return;
+    }
+
+    const txType: PaymentTransactionType =
+      actionType === 'REFUND'
+        ? 'refund'
+        : actionType === 'PARTIAL'
+        ? 'partial_payment'
+        : 'payment';
+
+    onConfirmPayment(job.id, amount, paymentType, txType, notes.trim() || undefined);
+    setCustomAmount('');
+    setNotes('');
+  };
+
+  const getStatusBadge = () => {
+    switch (currentStatus) {
+      case 'paid':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">Đã thu đủ</span>;
+      case 'partially_paid':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Thu một phần</span>;
+      case 'refunded':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800">Đã hoàn tiền</span>;
+      case 'unpaid':
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">Chưa thu tiền</span>;
+    }
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Sổ Cái Thu Tiền (Payment Ledger - DEC-03)"
-      subtitle={`Ghi nhận phiếu thu cho ca #${job.id} • Trạng thái công việc: Đã hoàn tất`}
+      title="Sổ Cái Thu Tiền & Hóa Đơn Dịch Vụ"
+      subtitle={`Ghi nhận thanh toán cho ca #${job.id} • Khách: ${job.customerName}`}
       maxWidth="md"
     >
       <div className="space-y-4">
-        {/* Receipt Header Badge */}
-        <div className="bg-[#0a1e3f] text-white p-4 rounded-2xl flex items-center justify-between">
+        {/* Mock Ledger Disclaimer (Transparency) */}
+        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2 text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <div className="text-[10px] text-teal-300 font-bold uppercase tracking-wider">
-              ThợOS Certified Guarantee
-            </div>
-            <div className="text-base font-black text-white mt-0.5">
-              Hóa Đơn Dịch Vụ Máy Lạnh
-            </div>
-            <div className="text-xs text-slate-300 mt-1">
-              Thợ: {job.technicianName}
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300">
-            <ShieldCheck className="w-6 h-6" />
+            <span className="font-bold">Mô phỏng Sổ cái thanh toán (Mock Ledger):</span> Dữ liệu ghi sổ được cập nhật trực tiếp vào hồ sơ ca làm việc phía client, chưa qua cổng kết nối ngân hàng/backend an toàn.
           </div>
         </div>
 
-        {/* Itemized Breakdown */}
-        <div className="bg-slate-50 rounded-xl border border-slate-200 p-3.5 space-y-2 text-xs">
-          <div className="font-bold text-slate-900 border-b border-slate-200 pb-1.5 flex justify-between">
-            <span>Khách hàng: {job.customerName}</span>
-            <span>{job.customerPhone}</span>
+        {/* Role Permission Warning if Unauthorized */}
+        {!perm.allowed && (
+          <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-2 text-xs text-rose-900 font-medium">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>Chặn thao tác: {perm.reason}</span>
           </div>
+        )}
 
-          <div className="space-y-1.5 pt-1">
-            <div className="flex justify-between font-semibold text-slate-700">
-              <span>Thiết bị: {job.brand} {job.horsePower}</span>
-              <span>1 bộ</span>
+        {/* Balance & Status Summary Card */}
+        <div className="bg-[#0a1e3f] text-white p-4 sm:p-5 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-slate-300">
+              Tổng giá trị dịch vụ: <strong className="text-white text-sm">{formatVND(pricing.totalPayable)}</strong>
             </div>
-
-            {job.selectedServices.map((s, idx) => (
-              <div key={idx} className="flex justify-between text-slate-600">
-                <span>Dịch vụ kỹ thuật ({s.quantity}x)</span>
-                <span>{formatVND(s.price * s.quantity)}</span>
-              </div>
-            ))}
-
-            {job.spareParts.map((p, idx) => (
-              <div key={idx} className="flex justify-between text-slate-600">
-                <span>
-                  {p.name} (BH {p.warrantyMonths}T)
-                </span>
-                <span>{formatVND(p.unitPrice * p.quantity)}</span>
-              </div>
-            ))}
-
-            {pricing.discountAmount > 0 && (
-              <div className="flex justify-between text-rose-600 font-medium">
-                <span>Chiết khấu / Ưu đãi:</span>
-                <span>-{formatVND(pricing.discountAmount)}</span>
-              </div>
-            )}
+            {getStatusBadge()}
           </div>
 
-          <div className="border-t border-slate-200 pt-2 flex items-center justify-between text-sm font-black text-slate-900">
-            <span>Tổng số tiền thu:</span>
-            <span className="text-lg text-[#0d9488] font-black">
-              {formatVND(pricing.totalPayable)}
-            </span>
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10 text-xs">
+            <div>
+              <span className="text-slate-400">Đã ghi nhận thu:</span>
+              <div className="text-base font-bold text-emerald-400 mt-0.5">
+                {formatVND(totalPaid)}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-slate-400">Số tiền còn lại:</span>
+              <div className="text-base font-bold text-amber-300 mt-0.5">
+                {formatVND(remainingAmount)}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Payment QR Code for Instant Scanning */}
-        <div className="bg-white border-2 border-dashed border-teal-200 rounded-2xl p-4 text-center">
-          <div className="flex justify-center gap-2 mb-3">
+        {/* Action Type Selector */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-800 block">
+            Chọn hình thức ghi sổ:
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActionType('FULL');
+                setErrorMessage('');
+              }}
+              className={`p-2 rounded-xl text-xs font-bold border transition-all ${
+                actionType === 'FULL'
+                  ? 'border-[#0d9488] bg-teal-50 text-[#0d9488]'
+                  : 'border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              Thu đủ số còn lại
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActionType('PARTIAL');
+                setErrorMessage('');
+              }}
+              className={`p-2 rounded-xl text-xs font-bold border transition-all ${
+                actionType === 'PARTIAL'
+                  ? 'border-[#0d9488] bg-teal-50 text-[#0d9488]'
+                  : 'border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              Thu một phần
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActionType('REFUND');
+                setErrorMessage('');
+              }}
+              className={`p-2 rounded-xl text-xs font-bold border transition-all ${
+                actionType === 'REFUND'
+                  ? 'border-purple-500 bg-purple-50 text-purple-700'
+                  : 'border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              Hoàn tiền
+            </button>
+          </div>
+        </div>
+
+        {/* Custom Amount Input for Partial or Refund */}
+        {(actionType === 'PARTIAL' || actionType === 'REFUND') && (
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-800 block">
+              {actionType === 'PARTIAL' ? 'Nhập số tiền thu một phần:' : 'Nhập số tiền hoàn trả khách:'}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+                placeholder="Ví dụ: 100.000"
+                className="w-full h-10 px-3 pr-10 rounded-xl border border-slate-300 font-bold text-slate-900 text-sm focus:outline-none focus:border-teal-600"
+              />
+              <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                VND
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Method Selector */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-800 block">
+            Phương thức thanh toán:
+          </label>
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setPaymentType('CHUYEN_KHOAN_QR')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`p-2 rounded-xl text-xs font-bold border transition-all ${
                 paymentType === 'CHUYEN_KHOAN_QR'
-                  ? 'bg-[#0d9488] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700'
+                  ? 'border-[#0d9488] bg-teal-50 text-[#0d9488]'
+                  : 'border-slate-200 bg-white text-slate-700'
               }`}
             >
-              Quét mã QR Ngân Hàng
+              Chuyển khoản VietQR
             </button>
             <button
               type="button"
               onClick={() => setPaymentType('TIEN_MAT')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`p-2 rounded-xl text-xs font-bold border transition-all ${
                 paymentType === 'TIEN_MAT'
-                  ? 'bg-[#0d9488] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700'
+                  ? 'border-[#0d9488] bg-teal-50 text-[#0d9488]'
+                  : 'border-slate-200 bg-white text-slate-700'
               }`}
             >
-              Thu tiền mặt
+              Tiền mặt
             </button>
           </div>
-
-          {paymentType === 'CHUYEN_KHOAN_QR' ? (
-            <div className="flex flex-col items-center">
-              <VietQRCode
-                amount={pricing.totalPayable}
-                orderId={job.id}
-                accountName="TRAN VAN HUNG"
-                accountNumber="0938 789 123"
-                bankName="Vietcombank"
-              />
-              <p className="text-xs font-bold text-slate-800 mt-2">
-                Quét VietQR từ bất kỳ App Ngân Hàng hoặc Ví điện tử
-              </p>
-            </div>
-          ) : (
-            <div className="p-6 bg-slate-50 rounded-xl text-center">
-              <DollarSign className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-              <div className="font-bold text-slate-900 text-sm">
-                Xác nhận thu tiền mặt tại chỗ
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Vui lòng đếm đủ số tiền{' '}
-                <strong className="text-slate-800">{formatVND(pricing.totalPayable)}</strong> trước
-                khi bấm hoàn tất.
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Action Button */}
-        {isPaidSuccess ? (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            Đã ghi nhận giao dịch vào Sổ cái thanh toán (Payment Ledger DEC-03)
+        {/* Dynamic VietQR or Cash UI */}
+        {paymentType === 'CHUYEN_KHOAN_QR' ? (
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center">
+            <VietQRCode
+              amount={getTransactionAmount() || remainingAmount || 150000}
+              orderId={job.id}
+              accountName="TRAN VAN HUNG"
+              accountNumber="0938 789 123"
+              bankName="Vietcombank"
+            />
+            <p className="text-xs font-medium text-slate-600 mt-2">
+              Quét VietQR qua ứng dụng ngân hàng để chuyển khoản đúng số tiền
+            </p>
           </div>
         ) : (
-          <Button
-            variant="success"
-            size="lg"
-            fullWidth
-            onClick={handleComplete}
-          >
-            <CheckCircle2 className="w-5 h-5 mr-1" />
-            Ghi nhận thu tiền vào sổ cái ({formatVND(pricing.totalPayable)})
-          </Button>
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+            <DollarSign className="w-8 h-8 text-emerald-600 mx-auto mb-1" />
+            <div className="font-bold text-slate-900 text-sm">
+              Xác nhận thu tiền mặt tại chỗ
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Kiểm đếm đúng số tiền{' '}
+              <strong className="text-slate-800">{formatVND(getTransactionAmount() || remainingAmount)}</strong>{' '}
+              từ khách hàng trước khi lưu sổ.
+            </p>
+          </div>
+        )}
+
+        {/* Optional Notes */}
+        <div>
+          <label className="text-xs font-bold text-slate-800 block mb-1">
+            Ghi chú giao dịch (tùy chọn):
+          </label>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Ví dụ: Khách thanh toán trước 50%, hẹn mai trả nốt"
+            className="w-full h-9 px-3 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-600"
+          />
+        </div>
+
+        {/* Error message */}
+        {errorMessage && (
+          <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <Button
+          variant={actionType === 'REFUND' ? 'danger' : 'success'}
+          size="lg"
+          fullWidth
+          disabled={!perm.allowed || (actionType === 'FULL' && remainingAmount === 0)}
+          onClick={handleComplete}
+        >
+          <CheckCircle2 className="w-5 h-5 mr-1" />
+          {actionType === 'REFUND'
+            ? `Xác nhận hoàn trả (${formatVND(getTransactionAmount())})`
+            : `Ghi nhận vào sổ cái (${formatVND(getTransactionAmount() || remainingAmount)})`}
+        </Button>
+
+        {/* Transaction History in Ledger (Append-Only) */}
+        {job.paymentEntries && job.paymentEntries.length > 0 && (
+          <div className="pt-3 border-t border-slate-200">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
+              <History className="w-3.5 h-3.5 text-teal-600" />
+              <span>Lịch sử sổ cái thu tiền ({job.paymentEntries.length} giao dịch)</span>
+            </div>
+            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              {job.paymentEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <span className="font-semibold text-slate-800">
+                      {entry.type === 'refund' ? 'Hoàn tiền' : entry.type === 'partial_payment' ? 'Thu một phần' : 'Thu tiền'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 ml-1.5">
+                      ({entry.method === 'CHUYEN_KHOAN_QR' ? 'VietQR' : 'Tiền mặt'}) • bởi {entry.recordedBy}
+                    </span>
+                    {entry.notes && (
+                      <div className="text-[10px] text-slate-500 italic mt-0.5">
+                        &ldquo;{entry.notes}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className={`font-mono font-bold ${
+                      entry.type === 'refund' ? 'text-rose-600' : 'text-emerald-700'
+                    }`}
+                  >
+                    {entry.type === 'refund' ? '-' : '+'}
+                    {formatVND(entry.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </Modal>

@@ -29,18 +29,25 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Form states
-  const [selectedCustomerId, setSelectedCustomerId] = useState(customers[0]?.id || '');
+  // P0 Tenant Isolation: Filter all entities strictly by currentUser.organizationId
+  const currentOrgId = currentUser.organizationId;
+  const tenantProperties = properties.filter((p) => p.organizationId === currentOrgId);
+  const tenantCustomers = customers.filter((c) => c.organizationId === currentOrgId);
+  const tenantDevices = devices.filter((d) => d.organizationId === currentOrgId);
+
+  // Form states (only initialize with customer from the same tenant)
+  const [selectedCustomerId, setSelectedCustomerId] = useState(tenantCustomers[0]?.id || '');
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
   const [district, setDistrict] = useState('Quận 1');
   const [accessNotes, setAccessNotes] = useState('');
 
-  const filteredProperties = properties.filter((p) => {
+  const filteredProperties = tenantProperties.filter((p) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const cust = customers.find((c) => c.id === p.customerId);
+    const cust = tenantCustomers.find((c) => c.id === p.customerId);
     return (
       p.label.toLowerCase().includes(q) ||
       p.address.toLowerCase().includes(q) ||
@@ -51,12 +58,24 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!label.trim() || !address.trim() || !selectedCustomerId) return;
+    setFormError('');
+
+    if (!label.trim() || !address.trim() || !selectedCustomerId) {
+      setFormError('Vui lòng điền đầy đủ tên địa điểm, địa chỉ và chọn khách hàng.');
+      return;
+    }
+
+    // Tenant Isolation Check: verify customer belongs to current tenant
+    const customer = tenantCustomers.find((c) => c.id === selectedCustomerId);
+    if (!customer || customer.organizationId !== currentOrgId) {
+      setFormError('Lỗi phân tách tổ chức: Không thể liên kết địa điểm với khách hàng thuộc tổ chức khác.');
+      return;
+    }
 
     const created: Property = {
       id: `prop-${Date.now()}`,
       customerId: selectedCustomerId,
-      organizationId: currentUser.organizationId,
+      organizationId: currentOrgId,
       label: label.trim(),
       address: address.trim(),
       district,
@@ -170,6 +189,12 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateProperty} className="p-5 space-y-3.5">
+              {formError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  {formError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Thuộc khách hàng *</label>
                 <select
@@ -177,7 +202,7 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
                   className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
                 >
-                  {customers.map((c) => (
+                  {tenantCustomers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName} - {c.phone}
                     </option>

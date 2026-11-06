@@ -35,10 +35,18 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
   const [filterBrand, setFilterBrand] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDeviceQr, setSelectedDeviceQr] = useState<Device | null>(null);
+  const [formError, setFormError] = useState('');
 
-  // Form states
-  const [customerId, setCustomerId] = useState(customers[0]?.id || '');
-  const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
+  // P0 Tenant Isolation: Filter all entities strictly by currentUser.organizationId
+  const currentOrgId = currentUser.organizationId;
+  const tenantDevices = devices.filter((d) => d.organizationId === currentOrgId);
+  const tenantCustomers = customers.filter((c) => c.organizationId === currentOrgId);
+  const tenantProperties = properties.filter((p) => p.organizationId === currentOrgId);
+
+  // Form states (initialized with tenant-scoped entities)
+  const [customerId, setCustomerId] = useState(tenantCustomers[0]?.id || '');
+  const availableProperties = tenantProperties.filter((p) => p.customerId === customerId);
+  const [propertyId, setPropertyId] = useState(availableProperties[0]?.id || tenantProperties[0]?.id || '');
   const [brand, setBrand] = useState('Daikin');
   const [modelCode, setModelCode] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
@@ -48,13 +56,11 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
   const [indoorUnitLocation, setIndoorUnitLocation] = useState('Phòng khách');
   const [outdoorUnitLocation, setOutdoorUnitLocation] = useState('Ban công');
 
-  const availableProperties = properties.filter((p) => p.customerId === customerId);
-
-  const filteredDevices = devices.filter((d) => {
+  const filteredDevices = tenantDevices.filter((d) => {
     if (filterBrand !== 'ALL' && d.brand !== filterBrand) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const cust = customers.find((c) => c.id === d.customerId);
+    const cust = tenantCustomers.find((c) => c.id === d.customerId);
     return (
       d.modelCode.toLowerCase().includes(q) ||
       d.neutralQrCode.toLowerCase().includes(q) ||
@@ -65,13 +71,27 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
 
   const handleCreateDevice = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modelCode.trim() || !customerId || !propertyId) return;
+    setFormError('');
+
+    if (!modelCode.trim() || !customerId || !propertyId) {
+      setFormError('Vui lòng điền mã Model, chọn Khách hàng và Địa điểm.');
+      return;
+    }
+
+    // Tenant Isolation Check
+    const cust = tenantCustomers.find((c) => c.id === customerId);
+    const prop = tenantProperties.find((p) => p.id === propertyId);
+
+    if (!cust || cust.organizationId !== currentOrgId || !prop || prop.organizationId !== currentOrgId) {
+      setFormError('Lỗi phân tách tổ chức: Không thể liên kết thiết bị với dữ liệu thuộc tổ chức khác.');
+      return;
+    }
 
     const randomNeutralId = `THO-OS-QR-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const created: Device = {
       id: `dev-${Date.now()}`,
-      organizationId: currentUser.organizationId,
+      organizationId: currentOrgId,
       customerId,
       propertyId,
       neutralQrCode: randomNeutralId,
@@ -83,8 +103,7 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
       gasType,
       indoorUnitLocation: indoorUnitLocation.trim(),
       outdoorUnitLocation: outdoorUnitLocation.trim() || undefined,
-      installedYear: 2024,
-      lastServicedAt: new Date().toISOString().split('T')[0],
+      installedYear: new Date().getFullYear(),
       createdAt: new Date().toISOString(),
     };
 
@@ -270,18 +289,24 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateDevice} className="p-5 space-y-3">
+              {formError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  {formError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Khách hàng sở hữu *</label>
                 <select
                   value={customerId}
                   onChange={(e) => {
                     setCustomerId(e.target.value);
-                    const matchedProp = properties.find((p) => p.customerId === e.target.value);
+                    const matchedProp = tenantProperties.find((p) => p.customerId === e.target.value);
                     if (matchedProp) setPropertyId(matchedProp.id);
                   }}
                   className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
                 >
-                  {customers.map((c) => (
+                  {tenantCustomers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName} - {c.phone}
                     </option>

@@ -19,7 +19,7 @@ import {
   ArrowLeft,
   Navigation,
 } from 'lucide-react';
-import { AirconType, ServiceType, Job } from '../../lib/types';
+import { AirconType, ServiceType, Job, BookingRequest } from '../../lib/types';
 import { calculateBaseServiceCost, formatVND } from '../../lib/pricing';
 import {
   validateBookingStep1,
@@ -31,11 +31,18 @@ import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 
 interface BookingWizardProps {
-  onJobCreated: (newJob: Job) => void;
+  onBookingCreated?: (newRequest: BookingRequest) => void;
+  onJobCreated?: (newJob: Job) => void;
+  currentOrgId?: string;
   onCancel?: () => void;
 }
 
-export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCancel }) => {
+export const BookingWizard: React.FC<BookingWizardProps> = ({
+  onBookingCreated,
+  onJobCreated,
+  currentOrgId = 'org-dienlanh-saigon',
+  onCancel,
+}) => {
   // 4 Core Steps as requested:
   // 1: Chọn dịch vụ & thiết bị
   // 2: Chọn ngày & khung giờ
@@ -69,8 +76,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
   // Step 4 State
   const [paymentPreference, setPaymentPreference] = useState<'TIEN_MAT' | 'CHUYEN_KHOAN_QR'>('CHUYEN_KHOAN_QR');
 
-  // Completed booking screen state
-  const [createdJobData, setCreatedJobData] = useState<Job | null>(null);
+  // Completed booking screen state (Independent BookingRequest with status 'requested')
+  const [createdBookingRequest, setCreatedBookingRequest] = useState<BookingRequest | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -132,53 +139,37 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
     notifyStepSuccess('Đã tự động điền vị trí hiện tại của bạn!');
   };
 
+  // P0 Invariant: Creates an independent BookingRequest with status 'requested'
+  // Strictly does NOT create a Job, does NOT assign technician, does NOT auto-confirm schedule
   const handleConfirmFinalBooking = () => {
-    const newJob: Job = {
+    const newRequest: BookingRequest = {
       id: `REQ-${Date.now().toString().slice(-6)}`,
-      organizationId: 'org-dienlanh-saigon',
+      organizationId: currentOrgId,
       customerName,
       customerPhone,
       address,
       district,
-      scheduledTime,
-      scheduledDate,
       airconType,
       brand,
-      horsePower,
+      quantity,
       serviceType,
       symptoms,
+      preferredDate: scheduledDate,
+      preferredTimeSlot: scheduledTime,
       customerNotes: urgencyLevel === 'URGENT' ? `[CẦN GẤP TRONG 60 PHÚT] ${customerNotes}` : customerNotes,
-      status: 'MOI', // Trạng thái requested (chờ điều phối viên xác nhận lịch)
-      paymentStatus: 'unpaid',
-      assignedTechnicianId: undefined, // DEC-04: Tuyệt đối không tự động gán thợ
-      technicianName: 'Chờ điều phối chỉ định thợ',
-      technicianPhone: '1900 8888',
-      checklist: {
-        drainPipeCleared: false,
-        filterCleaned: false,
-        outdoorCoilCleaned: false,
-        electricalTightened: false,
-      },
-      selectedServices: [
-        {
-          serviceId: serviceType === 'VE_SINH' ? 'VE_SINH_TREO_TUONG' : 'KIEM_TRA_TONG_THE',
-          quantity,
-          price: Math.round(estimatedCost / quantity),
-        },
-      ],
-      spareParts: [],
-      photosBefore: [],
-      photosAfter: [],
-      discount: discountAmount,
+      status: 'requested',
       createdAt: new Date().toISOString(),
     };
 
-    setCreatedJobData(newJob);
-    onJobCreated(newJob);
+    setCreatedBookingRequest(newRequest);
+
+    if (onBookingCreated) {
+      onBookingCreated(newRequest);
+    }
   };
 
-  // SUCCESS CONFIRMATION VIEW (DEC-04: Booking requested, awaiting dispatch confirmation)
-  if (createdJobData) {
+  // SUCCESS CONFIRMATION VIEW (Booking requested, awaiting dispatch confirmation)
+  if (createdBookingRequest) {
     return (
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md p-6 sm:p-8 max-w-xl mx-auto text-center animate-fadeIn">
         <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4">
@@ -186,39 +177,39 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
         </div>
 
         <Badge variant="navy" className="mb-2">
-          ĐÃ GỬI YÊU CẦU • MÃ #{createdJobData.id}
+          ĐÃ TIẾP NHẬN YÊU CẦU • MÃ #{createdBookingRequest.id}
         </Badge>
 
         <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-          Đã Tiếp Nhận Yêu Cầu Đặt Lịch!
+          Yêu Cầu Đặt Lịch Đang Chờ Xử Lý!
         </h3>
-        <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-          Theo quy tắc <strong>DEC-04</strong>, yêu cầu đặt lịch của bạn đang ở trạng thái <em>requested</em> (chưa giữ lịch chính thức). Điều phối viên của đội thợ sẽ kiểm tra xung đột thời gian và liên hệ số{' '}
-          <strong className="text-[#0d9488]">{createdJobData.customerPhone}</strong> để xác nhận lịch và chỉ định thợ.
+        <p className="text-xs text-slate-600 mt-1.5 max-w-md mx-auto leading-relaxed">
+          Yêu cầu của bạn đang ở trạng thái <strong className="text-blue-700">Chờ xác nhận (requested)</strong>. Điều phối viên sẽ kiểm tra lịch thợ phù hợp và liên hệ số điện thoại{' '}
+          <strong className="text-[#0d9488]">{createdBookingRequest.customerPhone}</strong> để chốt lịch và cử kỹ thuật viên đến hỗ trợ.
         </p>
 
         {/* Order Card Preview */}
         <div className="mt-5 bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left space-y-2 text-xs">
           <div className="flex justify-between border-b border-slate-200/80 pb-2">
-            <span className="text-slate-500">Thời gian hẹn:</span>
+            <span className="text-slate-500">Khung giờ hẹn mong muốn:</span>
             <span className="font-bold text-slate-900">
-              {createdJobData.scheduledTime} ({createdJobData.scheduledDate})
+              {createdBookingRequest.preferredTimeSlot} ({createdBookingRequest.preferredDate})
             </span>
           </div>
           <div className="flex justify-between border-b border-slate-200/80 pb-2">
             <span className="text-slate-500">Thiết bị:</span>
             <span className="font-bold text-slate-900">
-              {quantity} máy {createdJobData.brand} ({createdJobData.horsePower})
+              {quantity} máy {createdBookingRequest.brand} ({airconType === 'AM_TRAN' ? 'Âm trần' : 'Treo tường'})
             </span>
           </div>
           <div className="flex justify-between border-b border-slate-200/80 pb-2">
             <span className="text-slate-500">Địa chỉ thợ đến:</span>
             <span className="font-bold text-slate-900 line-clamp-1">
-              {createdJobData.address}, {createdJobData.district}
+              {createdBookingRequest.address}, {createdBookingRequest.district}
             </span>
           </div>
           <div className="flex justify-between pt-1 font-bold text-slate-900 text-sm">
-            <span>Chi phí dự kiến:</span>
+            <span>Chi phí ước tính:</span>
             <span className="text-[#0d9488] font-black">{formatVND(finalTotal)}</span>
           </div>
         </div>
@@ -226,11 +217,11 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
           <a
-            href={`tel:${(createdJobData.technicianPhone || '19008888').replace(/\s+/g, '')}`}
+            href="tel:19008888"
             className="flex-1 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all"
           >
             <Phone className="w-4 h-4 text-[#0d9488]" />
-            Hotline Đội Thợ {createdJobData.technicianPhone || '1900 8888'}
+            Hotline Điều Phối 1900 8888
           </a>
           <Button
             variant="teal"
@@ -240,7 +231,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ onJobCreated, onCa
               if (onCancel) onCancel();
             }}
           >
-            Theo dõi trạng thái đơn
+            Quay lại trang chính
           </Button>
         </div>
       </div>

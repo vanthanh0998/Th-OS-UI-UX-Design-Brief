@@ -60,12 +60,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setLoginError('');
 
-    // Look up staff user strictly by verified work email. Role is NEVER self-selected.
+    // Demo password check: validate minimum length and demo credential
+    if (!loginPassword || loginPassword.trim().length < 6) {
+      setLoginError('Mật khẩu phải có độ dài tối thiểu 6 ký tự.');
+      return;
+    }
+
+    if (loginPassword.trim() !== 'password123' && loginPassword.trim() !== 'thoos123') {
+      setLoginError('Mật khẩu không chính xác! (Mật khẩu thử nghiệm môi trường prototype: password123)');
+      return;
+    }
+
+    // Look up staff user strictly by email. Role is NEVER self-selected.
     const cleanEmail = loginEmail.trim().toLowerCase();
     const matchedUser = staffUsers.find((u) => u.email.trim().toLowerCase() === cleanEmail);
 
     if (!matchedUser) {
-      setLoginError('Email công việc không tồn tại trong danh sách nhân sự của tổ chức!');
+      setLoginError('Email không tồn tại trong danh sách nhân sự của tổ chức!');
       return;
     }
 
@@ -100,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h3 className="font-black text-base">ThợOS Staff Authentication</h3>
-              <p className="text-xs text-slate-300">Email & Password • Baseline v2.0 (Sprint 1)</p>
+              <p className="text-xs text-amber-300 font-semibold">Demo Authentication (Giả lập UI - Chưa kết nối backend)</p>
             </div>
           </div>
           <button
@@ -138,18 +149,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               view === 'SESSION' ? 'border-[#0d9488] text-[#0a1e3f] bg-white' : 'border-transparent'
             }`}
           >
-            Phiên làm việc
+            Phiên làm việc (Mock)
           </button>
         </div>
 
         <div className="p-5">
           {/* ======================================================== */}
-          {/* VIEW 1: ĐĂNG NHẬP BẰNG VERIFIED EMAIL & PASSWORD         */}
+          {/* VIEW 1: ĐĂNG NHẬP BẰNG EMAIL & PASSWORD (DEMO)           */}
           {/* ======================================================== */}
           {view === 'LOGIN' && (
             <div className="space-y-4">
-              <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200/80 text-[11px] text-blue-900 leading-relaxed">
-                <strong>Quy tắc Baseline v2.0:</strong> Nhân sự tổ chức đăng nhập bằng <strong>Verified Email & Mật khẩu</strong>. Vai trò (`owner`, `manager`, `technician`) được tự động nạp từ membership nội bộ, không có lựa chọn role tự do.
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                <span className="font-bold">Môi trường thử nghiệm (Demo Authentication):</span> Xác thực tài khoản diễn ra cục bộ phía client, chưa qua dịch vụ xác thực backend hoặc OAuth. Mật khẩu mẫu: <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">password123</code>.
               </div>
 
               {loginError && (

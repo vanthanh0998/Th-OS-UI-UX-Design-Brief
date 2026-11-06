@@ -46,6 +46,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [activeTab, setActiveTab] = useState<'WORKFLOW' | 'CHECKLIST' | 'QUOTATION' | 'PHOTOS'>('WORKFLOW');
   const [copied, setCopied] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState('');
+  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
 
   // Editable fields local state
   const [checklist, setChecklist] = useState(job.checklist);
@@ -322,14 +323,51 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               )}
 
               {job.status === 'BAO_GIA' && (
-                <Button
-                  variant="teal"
-                  size="lg"
-                  fullWidth
-                  onClick={() => handleStatusTransition('DANG_SUA')}
-                >
-                  Khách đã đồng ý &rarr; Tiến hành sửa chữa
-                </Button>
+                <div className="space-y-2">
+                  <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-1 text-left">
+                    <div className="font-bold text-teal-900 flex items-center justify-between">
+                      <span>Báo giá phiên bản Rev 1:</span>
+                      <span className="font-mono text-[11px] bg-teal-100 px-1.5 py-0.5 rounded text-teal-800">#REV-001</span>
+                    </div>
+                    <div className="text-slate-600 flex justify-between">
+                      <span>Tổng chi phí thỏa thuận:</span>
+                      <strong className="text-slate-900 font-bold">{formatVND(pricing.totalPayable)}</strong>
+                    </div>
+                    <p className="text-[11px] text-teal-800 pt-0.5">
+                      Xác nhận khách hàng đã nghiệm thu chi phí và đồng ý nội dung Báo giá Rev 1 trước khi bắt đầu làm.
+                    </p>
+                  </div>
+                  <Button
+                    variant="teal"
+                    size="lg"
+                    fullWidth
+                    onClick={() => {
+                      const updatedRevisions = [
+                        ...(job.quotationRevisions || []),
+                        {
+                          revisionNumber: (job.quotationRevisions?.length || 0) + 1,
+                          hash: `REV-00${(job.quotationRevisions?.length || 0) + 1}`,
+                          items: job.selectedServices.map((s) => ({ description: s.serviceId, price: s.price, quantity: s.quantity })),
+                          subtotal: pricing.subtotalServices + pricing.subtotalParts,
+                          discount: pricing.discountAmount,
+                          total: pricing.totalPayable,
+                          status: 'approved' as const,
+                          createdAt: new Date().toISOString(),
+                          approvedAt: new Date().toISOString(),
+                        },
+                      ];
+                      onUpdateJob({
+                        ...job,
+                        status: 'DANG_SUA',
+                        quotationRevisions: updatedRevisions,
+                      });
+                      setApprovalNotice('Đã xác nhận duyệt Báo giá Rev 1. Bắt đầu sửa chữa!');
+                      setTimeout(() => setApprovalNotice(null), 3500);
+                    }}
+                  >
+                    Xác nhận duyệt Báo giá Rev 1 &rarr; Tiến hành sửa chữa
+                  </Button>
+                </div>
               )}
 
               {job.status === 'DANG_SUA' && (

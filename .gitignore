@@ -8,5 +8,7 @@ coverage/
 !.env.example
 export/
 *.zip
+*.tar.gz
+.playwright-cli/
 public/export/
 public/*.zip

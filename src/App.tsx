@@ -38,6 +38,9 @@ import {
   Customer,
   Property,
   Device,
+  BookingRequest,
+  PaymentLedgerEntry,
+  PaymentTransactionType,
 } from './lib/types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -46,8 +49,11 @@ import {
   INITIAL_PROPERTIES,
   INITIAL_DEVICES,
   INITIAL_JOBS,
+  INITIAL_BOOKING_REQUESTS,
 } from './lib/mock-data';
 import { getNextStatus, STATUS_MAP } from './lib/status-machine';
+import { calculateJobTotal } from './lib/pricing';
+import { computePaymentStatusFromLedger } from './lib/payment-ledger';
 import { JobDetailModal } from './components/technician/JobDetailModal';
 import { ElectronicInvoiceModal } from './components/technician/ElectronicInvoiceModal';
 import { TechnicianDashboard } from './components/technician/TechnicianDashboard';
@@ -77,6 +83,9 @@ export default function App() {
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [properties, setProperties] = useState<Property[]>(INITIAL_PROPERTIES);
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
+
+  // Independent Booking Requests State (P0 Invariant: Never merged into jobs)
+  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>(INITIAL_BOOKING_REQUESTS);
 
   // Operational Jobs State
   const [jobs, setJobs] = useState<Job[]>(() => {
@@ -155,32 +164,44 @@ export default function App() {
     }
   };
 
-  // Payment confirmation - records to payment ledger
-  const handleConfirmPayment = (jobId: string, method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR') => {
+  // Payment confirmation - records to payment ledger dynamically without hardcoding
+  const handleConfirmPayment = (
+    jobId: string,
+    amount: number,
+    method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR',
+    type: PaymentTransactionType = 'payment',
+    notes?: string
+  ) => {
     setJobs((prev) =>
       prev.map((j) => {
         if (j.id !== jobId) return j;
-        const newEntry = {
+        const newEntry: PaymentLedgerEntry = {
           id: `LEDGER-${Date.now()}`,
           jobId,
-          amount: 150000,
+          amount,
+          type,
           method,
           recordedBy: currentUser.fullName,
           recordedAt: new Date().toISOString(),
+          notes,
         };
+        const updatedEntries = [...(j.paymentEntries || []), newEntry];
+        const pricing = calculateJobTotal(j.selectedServices, j.spareParts, j.discount);
+        const dynamicStatus = computePaymentStatusFromLedger(pricing.totalPayable, updatedEntries);
+
         return {
           ...j,
-          paymentStatus: 'paid',
-          paymentEntries: [...(j.paymentEntries || []), newEntry],
+          paymentStatus: dynamicStatus,
+          paymentEntries: updatedEntries,
         };
       })
     );
   };
 
-  const handleJobCreated = (newJob: Job) => {
-    setJobs([newJob, ...jobs]);
-    setCurrentCustomerJobId(newJob.id);
-    setActiveTab('CUSTOMER_TRACKING');
+  // P0 Invariant: Homeowner booking creates independent BookingRequest with status 'requested'
+  // Strictly does NOT create a Job, does NOT assign technician, does NOT auto-confirm schedule
+  const handleBookingCreated = (newRequest: BookingRequest) => {
+    setBookingRequests((prev) => [newRequest, ...prev]);
   };
 
   // Handlers for Sprint 1 Entities
@@ -197,12 +218,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-24 md:pb-12 font-sans selection:bg-[#0d9488]/20 selection:text-[#0d9488]">
-      {/* Offline Status Simulation Banner */}
+      {/* Offline Status Banner (P1 Requirement: truthful statement, no false auto-sync promise) */}
       {isOffline && (
         <div className="bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm animate-fadeIn">
           <WifiOff className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">
-            Chế độ ngoại tuyến: Dữ liệu lưu cục bộ trên thiết bị (chờ kết nối để gửi).
+            Mất kết nối mạng: Bạn đang xem dữ liệu lưu trên thiết bị. Các thao tác ghi cần kết nối Internet.
           </span>
           <button
             type="button"
@@ -392,10 +413,10 @@ export default function App() {
           />
         )}
 
-        {/* TAB 5: TECHNICIAN DASHBOARD */}
+        {/* TAB 5: TECHNICIAN DASHBOARD (Filtered by current organization tenant) */}
         {activeTab === 'TECHNICIAN_JOBS' && (
           <TechnicianDashboard
-            jobs={jobs}
+            jobs={jobs.filter((j) => j.organizationId === currentOrg.id)}
             technicianName={currentUser.fullName}
             onOpenDetails={(j) => {
               setSelectedJob(j);
@@ -410,16 +431,17 @@ export default function App() {
           />
         )}
 
-        {/* TAB 6: SPRINT TIẾP THEO - BOOKING FLOW */}
+        {/* TAB 6: BOOKING FLOW (Independent BookingRequest) */}
         {activeTab === 'BOOKING_FLOW' && (
           <div>
             <div className="mb-3 p-3 bg-blue-50 rounded-2xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
-              <span className="font-bold">Quy tắc DEC-04: Đặt lịch chỉ tạo đơn requested, không tự xác nhận hay gán thợ</span>
-              <span className="text-[11px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">Booking Requested</span>
+              <span className="font-bold">Đặt lịch dịch vụ: Tạo yêu cầu hẹn (requested), chờ điều phối viên kiểm tra và cử thợ</span>
+              <span className="text-[11px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">Chờ xác nhận</span>
             </div>
             <BookingWizard
-              onJobCreated={handleJobCreated}
-              onCancel={() => setActiveTab('CUSTOMER_TRACKING')}
+              currentOrgId={currentOrg.id}
+              onBookingCreated={handleBookingCreated}
+              onCancel={() => setActiveTab('TECHNICIAN_JOBS')}
             />
           </div>
         )}
@@ -530,13 +552,24 @@ export default function App() {
         }}
       />
 
-      {/* Switch Organization Tenant Modal */}
+      {/* Switch Organization Tenant Modal (P0 Tenant Isolation: resets selection and verifies membership) */}
       <SwitchOrganizationModal
         isOpen={isSwitchOrgModalOpen}
         onClose={() => setIsSwitchOrgModalOpen(false)}
         organizations={organizations}
         currentOrg={currentOrg}
-        onSelectOrg={(org) => setCurrentOrg(org)}
+        onSelectOrg={(org) => {
+          setCurrentOrg(org);
+          setSelectedJob(null);
+          setInvoiceJob(null);
+          // Verify user membership in switched organization
+          const matchedStaff = staffUsers.find((u) => u.organizationId === org.id);
+          if (matchedStaff) {
+            setCurrentUser(matchedStaff);
+          } else {
+            setCurrentUser((prev) => ({ ...prev, organizationId: org.id }));
+          }
+        }}
       />
 
       {/* Technician Detailed Workspace Modal */}
@@ -552,11 +585,12 @@ export default function App() {
         }}
       />
 
-      {/* Electronic Invoice & VietQR Payment Modal */}
+      {/* Electronic Invoice & Dynamic Payment Ledger Modal */}
       <ElectronicInvoiceModal
         job={invoiceJob}
         isOpen={isInvoiceModalOpen}
         onClose={() => setIsInvoiceModalOpen(false)}
+        currentUser={currentUser}
         onConfirmPayment={handleConfirmPayment}
       />
 
