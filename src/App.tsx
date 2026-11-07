@@ -784,59 +784,59 @@ export default function App() {
       {/* Mobile Ergonomic Bottom Bar (lg:hidden) */}
       <nav
         aria-label="Thanh điều hướng di động"
-        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-2 flex items-center justify-around lg:hidden shadow-lg"
+        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1 px-2 flex items-center justify-around lg:hidden shadow-lg h-16"
       >
         <button
           type="button"
           onClick={() => setActiveTab('CUSTOMERS')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === 'CUSTOMERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
+          className={`flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-xl transition-all ${
+            activeTab === 'CUSTOMERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Users className="w-5 h-5" />
-          <span className="text-[11px] font-bold">Khách hàng</span>
+          <span className="text-[11px] font-bold mt-0.5">Khách hàng</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('TECHNICIAN_JOBS')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === 'TECHNICIAN_JOBS' ? 'text-[#0d9488] font-black' : 'text-slate-500'
+          className={`flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-xl transition-all ${
+            activeTab === 'TECHNICIAN_JOBS' ? 'text-teal-700 font-black' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Wrench className="w-5 h-5 text-teal-600" />
-          <span className="text-[11px] font-bold">Lịch thợ</span>
+          <span className="text-[11px] font-bold mt-0.5">Lịch thợ</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('DEVICES')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === 'DEVICES' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
+          className={`flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-xl transition-all ${
+            activeTab === 'DEVICES' ? 'text-[#0a1e3f] font-black' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Airplay className="w-5 h-5" />
-          <span className="text-[11px] font-bold">Máy lạnh</span>
+          <span className="text-[11px] font-bold mt-0.5">Máy lạnh</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('MEMBERS')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === 'MEMBERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
+          className={`flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-xl transition-all ${
+            activeTab === 'MEMBERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Shield className="w-5 h-5" />
-          <span className="text-[11px] font-bold">Đội thợ</span>
+          <span className="text-[11px] font-bold mt-0.5">Đội thợ</span>
         </button>
 
         <button
           type="button"
           onClick={() => setIsDemoToolsOpen(true)}
-          className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-500 transition-all"
+          className="flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-xl text-slate-500 hover:text-slate-800 transition-all"
         >
           <Sliders className="w-5 h-5 text-slate-400" />
-          <span className="text-[11px] font-bold">Thêm</span>
+          <span className="text-[11px] font-bold mt-0.5">Mô phỏng</span>
         </button>
       </nav>
 
