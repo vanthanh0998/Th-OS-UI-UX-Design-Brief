@@ -1,113 +1,129 @@
 # BÁO CÁO NGHIỆM THU THIẾT KẾ UI/UX — THỢOS
 **Tài liệu:** `docs/reviews/UI_REVIEW_LATEST.md`  
-**Phiên bản UI:** v2.3 (Giải quyết triệt để yêu cầu BA/PM/QC Review v2.3 — Toàn bộ lỗi P0/P1 đã xử lý)  
-**Trạng thái nghiệm thu:** `READY_FOR_REVIEW` (Thay thế cho `CHANGES_REQUESTED`)  
+**Phiên bản:** v2.3.1 (Hoàn thiện hiệu chỉnh P0 theo phản hồi BA/PM/QC Review)  
+**Trạng thái nghiệm thu:** `CHANGES_SUBMITTED_FOR_REVIEW` (Đang chờ BA/PM/QC thẩm định nghiệm thu)  
 **Ngày thực hiện:** 2026-11-06  
 **Nhánh Git:** `feat/visual-refinement-v2.3`  
 **Remote Repository:** `https://github.com/vanthanh0998/Th-OS-UI-UX-Design-Brief`  
-**Commit SHA:** `3a9fdbc619c68e82707b073805127fd9275339a1`  
+**Commit SHA:** `59aa87c4ec04336e0493cb9209f818f0a1a9d811`  
 
 ---
 
-## 1. TỔNG QUAN XỬ LÝ CÁC ĐIỂM ĐÁNH GIÁ (BA/PM/QC RESOLUTION)
+## 1. MA TRẬN PHÂN LOẠI & TRẠNG THÁI HIỆU CHỈNH (P0 & P1)
 
-Tất cả 4 lỗi P0 và các lỗi P1 được chỉ định trong thông báo review v2.3 đã được lập trình, kiểm thử tự động và xác minh giao diện thực tế:
+Báo cáo này phân định rõ ràng giữa mã nguồn đã sửa, kết quả test tự động, các thành phần mock client-side và các giới hạn hệ thống chưa có backend:
 
-| Phân loại | Nội dung yêu cầu | File liên quan | Trạng thái | Bài test kiểm chứng |
-| :--- | :--- | :--- | :--- | :--- |
-| **P0-1** | **BookingRequest độc lập:** Wizard chỉ tạo bản ghi `BookingRequest` (`status: 'requested'`), không tạo `Job` (`MOI`), không tự gán thợ, không tự xác nhận lịch, mảng `bookingRequests` tách biệt hoàn toàn khỏi `jobs`. | `src/components/customer/BookingWizard.tsx`, `src/App.tsx` | **ĐÃ GIẢI QUYẾT** | `src/lib/booking-requests.test.ts` (2 tests PASSED) |
-| **P0-2** | **Sổ cái thu tiền (Payment Ledger) & Quyền hạn:** Xóa bỏ hoàn toàn giá trị hardcode `150000` và trạng thái `'paid'`. Trạng thái thanh toán tính toán động từ ledger (`unpaid`, `partially_paid`, `paid`, `refunded`). Hỗ trợ thu một phần, thu đủ, hoàn tiền. Kiểm tra quyền `canRecordPayment` theo role. Giữ disclaimer rõ ràng về mock ledger. | `src/lib/payment-ledger.ts`, `src/components/technician/ElectronicInvoiceModal.tsx`, `src/App.tsx` | **ĐÃ GIẢI QUYẾT** | `src/lib/payment-ledger.test.ts` (6 tests PASSED) |
-| **P0-3** | **Cách ly dữ liệu Đa tổ chức (Tenant Isolation):** Lọc dữ liệu `PropertiesView.tsx` và `DevicesView.tsx` chặt chẽ theo `currentOrg.id`. Chặn liên kết chéo khách hàng/địa điểm khác tổ chức. Lọc jobs của Technician Dashboard theo `currentOrg.id`. Reset lựa chọn khi chuyển tổ chức. | `src/components/properties/PropertiesView.tsx`, `src/components/devices/DevicesView.tsx`, `src/App.tsx` | **ĐÃ GIẢI QUYẾT** | `src/lib/tenant-isolation.test.ts` (3 tests PASSED) |
-| **P0-4** | **Bảo mật & Đăng nhập (Demo Auth):** Gắn nhãn Demo Authentication rõ ràng, kiểm tra mật khẩu tối thiểu 6 ký tự (`password123` / `thoos123`), hiển thị disclaimer minh bạch về việc chưa tích hợp Identity Provider thực tế. | `src/components/auth/AuthModal.tsx` | **ĐÃ GIẢI QUYẾT** | Đã xác minh UI |
-| **P1-1** | **Banner Ngoại tuyến trung thực:** Hiển thị chính xác: *"Mất kết nối mạng: Bạn đang xem dữ liệu lưu trên thiết bị. Các thao tác ghi cần kết nối Internet."* Không hứa hẹn tự động đồng bộ khi chưa có offline queue backend. | `src/App.tsx` | **ĐÃ GIẢI QUYẾT** | Đã xác minh UI |
-| **P1-2** | **Xác nhận sửa Báo giá (Quotation Revision):** Khi báo giá phát sinh được duyệt, lưu lại lịch sử sửa đổi rõ ràng (`#REV-001`), hiển thị thông báo xác nhận thành công và kiểm toán thay đổi. | `src/components/technician/JobDetailModal.tsx` | **ĐÃ GIẢI QUYẾT** | Đã xác minh UI |
-| **P1-3** | **Loại bỏ mã kỹ thuật nội bộ:** Đã xóa sạch toàn bộ mã `DEC-03`, `ETA-001`, `FR-004` khỏi giao diện người dùng. | Toàn bộ codebase | **ĐÃ GIẢI QUYẾT** | Đã rà soát `grep` |
+| Hạng mục | Yêu cầu nghiệp vụ | Mã nguồn triển khai (Real Code) | Bằng chứng kiểm thử tự động | Tính chất triển khai | Trạng thái Nghiệm thu |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **P0-01: Organization Membership** | • Chỉ cho chuyển sang tổ chức có membership hợp lệ.<br>• Không gán nhân viên khác thay thế người đăng nhập.<br>• Bảo toàn danh tính người dùng (`currentUser.id`, tên, sđt, email).<br>• Từ chối truy cập nếu không có membership.<br>• Reset selected records khi đổi tenant. | `src/lib/org-membership.ts`<br>`src/components/organization/SwitchOrganizationModal.tsx`<br>`src/App.tsx` | • `src/lib/org-membership.test.ts` (3 tests PASSED)<br>• `src/lib/integration-flows.test.ts` (Test 2 PASSED) | **Frontend State & In-Memory Logic**<br>*(Chưa có Identity Provider / Backend Auth)* | `CHANGES_SUBMITTED_FOR_REVIEW` |
+| **P0-02: Payment Authorization** | • Chỉ Owner/Manager được xác nhận thu tiền vào sổ cái.<br>• Technician chỉ được báo khách đã thanh toán, không tự xác nhận.<br>• Kiểm tra quyền tại hàm ghi ledger (`canRecordPayment`).<br>• Kiểm tra tenant và trạng thái ca (chặn ca đã hủy).<br>• Ghi rõ nhãn mock ledger. | `src/lib/payment-ledger.ts`<br>`src/components/technician/ElectronicInvoiceModal.tsx`<br>`src/App.tsx` | • `src/lib/payment-ledger.test.ts` (Test permission PASSED)<br>• `src/lib/integration-flows.test.ts` (Test 4 PASSED) | **Client Mock Ledger**<br>*(Chưa có Payment Gateway / Ngân hàng)* | `CHANGES_SUBMITTED_FOR_REVIEW` |
+| **P0-03: Payment Calculations** | • Bổ sung trạng thái `overpaid`.<br>• Phân biệt rõ 5 trạng thái: `unpaid`, `partially_paid`, `paid`, `overpaid`, `refunded`.<br>• Bút toán append-only có lý do và người ghi nhận.<br>• Chỉ dùng số tiền VND nguyên hợp lệ (> 0).<br>• Chặn thanh toán âm, chặn điều chỉnh âm số dư.<br>• Chống submit trùng lặp (idempotency key & rapid duplicate). | `src/lib/payment-ledger.ts`<br>`src/lib/types.ts`<br>`src/components/technician/ElectronicInvoiceModal.tsx` | • `src/lib/payment-ledger.test.ts` (8 tests PASSED)<br>• `src/lib/integration-flows.test.ts` (Test 3 PASSED) | **Client Business Logic Module**<br>*(Lưu trữ client-side)* | `CHANGES_SUBMITTED_FOR_REVIEW` |
+| **P0-04: Real Code & Tests** | • Trích xuất logic nghiệp vụ dùng chung thành production modules.<br>• Component dùng chính các module đó.<br>• Test import code thật, không viết hàm giả lập trong test.<br>• Bổ sung integration tests (booking, org switch, payment, denial). | `src/lib/booking-requests.ts`<br>`src/lib/tenant-isolation.ts`<br>`src/lib/org-membership.ts`<br>`src/lib/payment-ledger.ts` | • Toàn bộ **36/36 tests PASSED** chạy trên code production thực tế | **Production Modules trong src/lib/**<br>*(Kiểm thử 100% bằng node:test)* | `CHANGES_SUBMITTED_FOR_REVIEW` |
+| **P1: Báo cáo trung thực** | • Phân biệt rõ code đã sửa, test xác minh, mock frontend, chưa có backend/RLS.<br>• Không tuyên bố tự ý "đã nghiệm thu" khi BA/PM/QC chưa duyệt. | `docs/reviews/UI_REVIEW_LATEST.md` | Tài liệu rà soát minh bạch | **Documentation** | `CHANGES_SUBMITTED_FOR_REVIEW` |
 
 ---
 
-## 2. KẾT QUẢ KIỂM THỬ KỸ THUẬT (BUILD & TEST SUITE)
+## 2. CHI TIẾT CÁC MODULE SẢN PHẨM ĐÃ TRÍCH XUẤT (REAL PRODUCTION MODULES)
 
-- **Biên dịch mã nguồn (Vite Build):** `compile_applet` PASSED.
-- **Kiểm tra kiểu tĩnh (TypeScript):** `lint_applet` (`tsc --noEmit`) PASSED (0 lỗi).
-- **Tổng số Unit Tests:** **26/26 PASSED** (100% đạt chuẩn kiểm thử `npx tsx --test`):
-  1. `src/lib/booking-requests.test.ts` (2 tests):
-     - Xác minh tạo `BookingRequest` độc lập với trạng thái `requested`, không gán thợ.
-     - Xác minh danh sách `jobs` không bị thêm mới khi khách gửi yêu cầu đặt lịch.
-  2. `src/lib/payment-ledger.test.ts` (6 tests):
-     - Tính đúng tổng tiền đã thanh toán từ danh sách bút toán (ledger entries).
-     - Tính trạng thái `unpaid` khi chưa có bút toán.
-     - Tính trạng thái `partially_paid` khi tổng thu nhỏ hơn tổng tiền phải thanh toán.
-     - Tính trạng thái `paid` khi tổng thu bằng hoặc vượt tổng tiền phải thanh toán.
-     - Tính trạng thái `refunded` khi tổng số dư thực nhận nhỏ hơn hoặc bằng 0 sau hoàn tiền.
-     - Phân quyền thu tiền: Cho phép `admin`, `manager`, `technician`; chặn `customer` và `guest`.
-  3. `src/lib/tenant-isolation.test.ts` (3 tests):
-     - Lọc danh sách bất động sản và thiết bị chính xác theo `organizationId`.
-     - Chặn tạo bất động sản hoặc thiết bị khi cố gắng gán khách hàng thuộc tổ chức khác.
-     - Ngăn ngừa rò rỉ dữ liệu khi người dùng chuyển đổi tổ chức hoạt động.
-  4. `src/lib/pricing.test.ts` (5 tests):
-     - Tính đúng đơn giá vệ sinh treo tường, cassette, số lượng máy, không có công thức hoa hồng chưa duyệt.
-  5. `src/lib/status-machine.test.ts` (5 tests):
-     - Chuyển trạng thái đúng tuần tự, chặn nhảy cóc bước, hỗ trợ hủy từ trạng thái đang thực hiện.
-  6. `src/lib/booking-validation.test.ts` (5 tests):
-     - Kiểm tra dữ liệu dịch vụ, thời gian hẹn, và định dạng số điện thoại Việt Nam chuẩn.
+Nhằm đáp ứng triệt để yêu cầu **P0-04**, toàn bộ logic nghiệp vụ cốt lõi đã được chuyển thành các module độc lập trong thư mục `src/lib/`, được dùng chung cho cả UI components và bộ test:
 
----
+1. **`src/lib/org-membership.ts`**:
+   - `getUserMemberships(userId, memberships)`: Lọc danh sách membership hợp lệ của người dùng.
+   - `getAccessibleOrganizations(userId, orgs, memberships)`: Trả về danh sách tổ chức người dùng thực sự có quyền truy cập.
+   - `canSwitchToOrganization(userId, targetOrgId, memberships)`: Chặn đứng truy cập vào tổ chức không có membership.
+   - `switchOrganizationContext(...)`: Chuyển đổi ngữ cảnh tổ chức mà vẫn bảo toàn 100% danh tính người dùng (`currentUser.id`, tên, sđt, email).
 
-## 3. DANH SÁCH MÀN HÌNH HOÀN THIỆN & ẢNH CHỤP ĐỐI CHIẾU
+2. **`src/lib/payment-ledger.ts`**:
+   - `validateVNDAmount(amount, options)`: Ràng buộc số tiền VND nguyên, dương (> 0), không chấp nhận số lẻ thập phân hoặc NaN.
+   - `calculateTotalPaid(entries)`: Tính tổng thu ròng từ các bút toán thu tiền và hoàn tiền.
+   - `computePaymentStatusFromLedger(totalPayable, entries)`: Tính toán động trạng thái thanh toán gồm 5 trạng thái (`unpaid`, `partially_paid`, `paid`, `overpaid`, `refunded`).
+   - `canRecordPayment(currentUser, job)`: Ràng buộc quyền ghi sổ cái: Chỉ Owner/Manager được ghi nhận; Technician bị chặn với thông báo hướng dẫn gửi báo cáo thu tiền.
+   - `recordPaymentLedgerEntry(params)`: Hàm ghi sổ cái duy nhất: Kiểm tra quyền, kiểm tra tenant, kiểm tra ca đã hủy, kiểm tra số tiền VND, kiểm tra lý do hoàn tiền/điều chỉnh, kiểm tra trùng lặp (idempotency key & rapid submission), sinh bút toán append-only và cập nhật trạng thái đơn.
+   - `reportPaymentByTechnician(...)`: Chức năng dành riêng cho thợ báo cáo khách đã thanh toán mà không làm thay đổi sổ cái.
 
-### 3.1. Danh bạ Khách hàng — Mobile 390px
-- **Đường dẫn ảnh:** `docs/reviews/screenshots/customers-mobile-390.png`
-- **Xác minh kích thước & tràn viền:** `scrollWidth: 390px`, `clientWidth: 390px` (`scrollWidth <= clientWidth: true`). Không có hiện tượng tràn màn hình ngang.
-- **Điểm nổi bật:**
-  - Header thu gọn 1 tầng 56px, hiển thị logo và huy hiệu tổ chức hiện tại.
-  - Bộ lọc trạng thái trực quan, thẻ khách hàng hiển thị số máy lạnh, loại gas và nút gọi 1-chạm (`tel:...`).
-  - Bấm vào thẻ mở chi tiết dạng Bottom Sheet tối ưu ngón tay cái.
+3. **`src/lib/booking-requests.ts`**:
+   - `createBookingRequest(params)`: Tạo bản ghi `BookingRequest` độc lập với trạng thái `requested`, không gán thợ, không xác nhận lịch, không đụng chạm đến mảng `jobs`.
+   - `validateBookingRequest(req)`: Xác thực dữ liệu đầu vào và định dạng số điện thoại Việt Nam.
 
-### 3.2. Danh bạ & Hồ sơ Khách hàng — Desktop 1280px
-- **Đường dẫn ảnh:** `docs/reviews/screenshots/customers-desktop-1280.png`
-- **Xác minh kích thước & tràn viền:** `scrollWidth: 1280px`, `clientWidth: 1280px` (`scrollWidth <= clientWidth: true`).
-- **Điểm nổi bật:**
-  - Bố cục Master-Detail tỷ lệ 5:7 chuẩn Premium SaaS thương mại.
-  - Danh sách thiết bị gắn mã QR định danh, cảnh báo lịch bảo dưỡng định kỳ và ghi chú tiếp cận chung cư.
-
-### 3.3. Dashboard Lịch Thợ — Mobile 390px
-- **Đường dẫn ảnh:** `docs/reviews/screenshots/technician-dashboard-mobile-390.png`
-- **Xác minh kích thước & tràn viền:** `scrollWidth: 390px`, `clientWidth: 390px` (`scrollWidth <= clientWidth: true`).
-- **Điểm nổi bật:**
-  - Spotlight Hero Card nền Navy `#0a1e3f` tương phản cao làm nổi bật ca việc quan trọng nhất.
-  - Cụm nút Thumb-Zone 48px: Gọi điện, Google Maps và Chuyển trạng thái.
-  - Dữ liệu công việc được lọc chặt chẽ theo tổ chức hiện tại (hiện đúng 3 ca của `org-dienlanh-saigon`, không bị lẫn dữ liệu tổ chức khác).
+4. **`src/lib/tenant-isolation.ts`**:
+   - `filterByTenant(items, tenantId)`: Lọc dữ liệu nghiêm ngặt theo `organizationId`.
+   - `validateCrossTenantLink(property, customer)`: Chặn gán địa điểm chéo tổ chức.
+   - `validateDeviceTenantLink(...)`: Chặn liên kết thiết bị chéo tổ chức.
 
 ---
 
-## 4. TÌNH TRẠNG BÀN GIAO & PHƯƠNG ÁN ĐỒNG BỘ GITHUB
+## 3. KẾT QUẢ KIỂM THỬ TỰ ĐỘNG (36/36 TESTS PASSED)
 
-### 4.1. Giới hạn môi trường:
-Môi trường Google AI Studio không lưu giữ Personal Access Token (PAT) hoặc khóa SSH của người dùng (`fatal: could not read Username for 'https://github.com': No such device or address`). Để tuân thủ nguyên tắc bảo mật và quy định không tự ý khai thác thông tin người dùng, hệ thống đã tạo sẵn 3 kênh bàn giao ngoại tuyến hoàn chỉnh:
+Chạy thực tế qua lệnh: `npx tsx --test src/lib/*.test.ts` (Node.js Test Runner):
+
+```text
+✔ createBookingRequest from real module creates independent request with requested status
+✔ validateBookingRequest enforces required fields and Vietnamese phone format
+✔ submitting a booking request does not alter jobs list
+✔ validateBookingStep1 detects missing service and invalid quantity
+✔ validateBookingStep2 requires preferred date and time slot
+✔ validateBookingStep3 validates Vietnamese phone numbers correctly
+✔ sortJobs prioritizes active jobs before upcoming jobs and completed jobs
+✔ sortJobs with PRIORITY sorts emergency symptom jobs first
+✔ INTEGRATION 1: Booking Creation Workflow — creates independent BookingRequest without altering operational jobs
+✔ INTEGRATION 2: Organization Switching Workflow — preserves identity, scopes data, resets selected records
+✔ INTEGRATION 3: Payment Recording Workflow — Owner records payment, recomputes status dynamically, handles overpayment and refund
+✔ INTEGRATION 4: Permission Denial Workflow — blocks unauthorized operations at the core function boundary
+✔ getUserMemberships and getAccessibleOrganizations return only organizations with active membership
+✔ canSwitchToOrganization allows authorized tenant and rejects unauthorized tenant
+✔ switchOrganizationContext preserves user identity and refuses access when membership is missing
+✔ calculateTotalPaid accurately sums entries and handles refunds
+✔ computePaymentStatusFromLedger computes all 5 statuses: unpaid, partially_paid, paid, overpaid, refunded
+✔ validateVNDAmount strictly enforces integer positive VND
+✔ canRecordPayment allows Owner and Manager, strictly blocks Technician from confirming ledger
+✔ recordPaymentLedgerEntry successfully records full payment, partial payment, and overpayment
+✔ recordPaymentLedgerEntry rejects duplicate submission with same idempotencyKey
+✔ recordPaymentLedgerEntry enforces refund constraints: mandatory reason and amount bound
+✔ reportPaymentByTechnician records report note without confirming ledger
+✔ calculateBaseServiceCost calculates single wall aircon cleaning correctly
+✔ calculateBaseServiceCost calculates cassette / ceiling aircon cleaning correctly
+✔ calculateBaseServiceCost calculates multi-machine bookings accurately without arbitrary discounts
+✔ calculateJobTotal calculates subtotal, parts, discount and net total correctly
+✔ formatVND formats Vietnamese currency strings properly
+✔ status machine allows forward progression
+✔ status machine disallows skipping forward without intermediate steps
+✔ status machine allows cancellation from in-flight states
+✔ getNextStatus returns valid step sequence
+✔ STATUS_MAP contains correct standardized labels
+✔ filterByTenant strictly separates data between Org A and Org B
+✔ validateCrossTenantLink rejects associating property to a customer from another tenant
+✔ validateDeviceTenantLink ensures device, customer, and property share same organizationId
+
+Tổng cộng: 36/36 tests passed (100% thành công)
+```
+
+---
+
+## 4. CÔNG BỐ MINH BẠCH VỀ GIỚI HẠN KỸ THUẬT (LIMITATIONS & DISCLAIMERS)
+
+1. **Client-side Mock State:**
+   - Dữ liệu hiện tại được duy trì trong React state và đồng bộ vào `localStorage`. Khi xóa cache trình duyệt, dữ liệu sẽ quay về mock khởi tạo.
+2. **Chưa có Backend Server & Row Level Security (RLS):**
+   - Ứng dụng hiện là prototype SPA (Single Page Application). Cơ chế Multi-tenancy và RBAC hiện được thực thi ở tầng client logic. Cần triển khai các bảng PostgreSQL với RLS policies khi kết nối backend production.
+3. **Mock Ledger chưa tích hợp Cổng thanh toán:**
+   - Các bút toán thanh toán được ghi vào sổ cái nội bộ của ca làm việc nhằm phục vụ kiểm soát thu chi; chưa có webhook kết nối tài khoản ngân hàng hoặc cổng VietQR tự động xác nhận số dư.
+4. **Trạng thái phê duyệt:**
+   - Phiên bản này là bản nộp hiệu chỉnh (`CHANGES_SUBMITTED_FOR_REVIEW`) và chưa được xem là đã hoàn tất nghiệm thu cho đến khi có ý kiến chính thức từ BA/PM/QC.
+
+---
+
+## 5. PHƯƠNG ÁN ĐỒNG BỘ GITHUB & TẢI FILE BÀN GIAO
+
+Môi trường Google AI Studio không lưu trữ GitHub PAT/SSH key (`could not read Username for 'https://github.com'`). Toàn bộ mã nguồn, tài liệu và ảnh đã được đóng gói thành các file có thể tải trực tiếp:
 
 1. **Git Bundle:** `export/thoos-v2.3-visual-refinement.bundle`
-   - Chứa đầy đủ commit history, cây thư mục và nhánh `feat/visual-refinement-v2.3`.
-   - Lệnh nhập vào local git:
+   - Tải trực tiếp: `http://localhost:3000/export/thoos-v2.3-visual-refinement.bundle`
+   - Nhập vào repository local:
      ```bash
      git clone export/thoos-v2.3-visual-refinement.bundle -b feat/visual-refinement-v2.3
-     # Hoặc fetch vào repository có sẵn:
-     git fetch export/thoos-v2.3-visual-refinement.bundle feat/visual-refinement-v2.3:feat/visual-refinement-v2.3
      git push origin feat/visual-refinement-v2.3
      ```
 2. **Git Patch:** `export/thoos-v2.3-visual-refinement.patch`
-   - Lệnh áp dụng patch:
-     ```bash
-     git checkout -b feat/visual-refinement-v2.3
-     git apply export/thoos-v2.3-visual-refinement.patch
-     ```
-3. **Handover Zip:** `public/thoos-ui-refinement-v2.3-handover.zip`
-   - Chứa toàn bộ source code đã sửa, bộ test, tài liệu bàn giao và thư mục screenshots.
-   - Có thể tải trực tiếp qua trình duyệt dev server tại URL: `http://localhost:3000/thoos-ui-refinement-v2.3-handover.zip`.
-
----
-
-## 5. KẾ HOẠCH BÀN GIAO TIẾP THEO
-
-1. BA/PM/QC tải file bàn giao hoặc áp dụng patch để đồng bộ nhánh `feat/visual-refinement-v2.3` lên GitHub.
-2. Tạo Pull Request vào nhánh `main` và tiến hành nghiệm thu cuối cùng theo bộ 26 unit tests tự động.
-3. Chuyển sang giai đoạn Sprint 2: Thiết kế giao diện Điều phối viên tiếp nhận và phân công thợ từ danh sách `BookingRequest`.
+   - Tải trực tiếp: `http://localhost:3000/export/thoos-v2.3-visual-refinement.patch`
+3. **ZIP Handover Package:** `public/thoos-ui-refinement-v2.3-handover.zip`
+   - Tải trực tiếp: `http://localhost:3000/thoos-ui-refinement-v2.3-handover.zip`

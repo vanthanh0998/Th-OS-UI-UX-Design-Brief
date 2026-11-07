@@ -26,6 +26,7 @@ import {
   validateBookingStep2,
   validateBookingStep3,
 } from '../../lib/booking-validation';
+import { createBookingRequest } from '../../lib/booking-requests';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
@@ -142,8 +143,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   // P0 Invariant: Creates an independent BookingRequest with status 'requested'
   // Strictly does NOT create a Job, does NOT assign technician, does NOT auto-confirm schedule
   const handleConfirmFinalBooking = () => {
-    const newRequest: BookingRequest = {
-      id: `REQ-${Date.now().toString().slice(-6)}`,
+    const newRequest = createBookingRequest({
       organizationId: currentOrgId,
       customerName,
       customerPhone,
@@ -157,9 +157,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       preferredDate: scheduledDate,
       preferredTimeSlot: scheduledTime,
       customerNotes: urgencyLevel === 'URGENT' ? `[CẦN GẤP TRONG 60 PHÚT] ${customerNotes}` : customerNotes,
-      status: 'requested',
-      createdAt: new Date().toISOString(),
-    };
+    });
 
     setCreatedBookingRequest(newRequest);
 

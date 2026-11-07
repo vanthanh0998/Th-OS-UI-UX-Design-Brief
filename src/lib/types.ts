@@ -158,7 +158,7 @@ export type JobStatus =
   | 'HOAN_THANH'       // Hoàn thành kỹ thuật (tách biệt với thanh toán DEC-03)
   | 'DA_HUY';          // Hủy ca
 
-export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
+export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overpaid' | 'refunded';
 
 export type PaymentTransactionType = 'payment' | 'partial_payment' | 'refund' | 'adjustment';
 
@@ -166,13 +166,25 @@ export type PaymentTransactionType = 'payment' | 'partial_payment' | 'refund' | 
 export interface PaymentLedgerEntry {
   id: string;
   jobId: string;
-  amount: number;
-  type?: PaymentTransactionType;
+  amount: number; // Integer VND amount (> 0 for payment/partial_payment/refund)
+  type: PaymentTransactionType;
   method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR';
   transactionRef?: string;
-  recordedBy: string; // staff ID or Name
-  recordedAt: string;
+  idempotencyKey?: string;
+  recordedBy: string; // Staff name / ID of Owner or Manager
+  recordedAt: string; // ISO 8601
+  reason?: string;    // Required for refund & adjustment
   notes?: string;
+}
+
+// Multi-tenant Organization Membership (P0-01)
+export interface UserMembership {
+  id: string;
+  userId: string;
+  organizationId: string;
+  role: StaffRole;
+  active: boolean;
+  joinedAt: string;
 }
 
 // Quotation revision per QUO-001

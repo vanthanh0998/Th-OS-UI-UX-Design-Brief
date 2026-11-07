@@ -1,43 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createBookingRequest, validateBookingRequest } from './booking-requests';
 import { BookingRequest, Job } from './types';
 
-export const createBookingRequest = (params: {
-  customerName: string;
-  customerPhone: string;
-  address: string;
-  district: string;
-  airconType: any;
-  brand: string;
-  quantity: number;
-  serviceType: any;
-  symptoms: string[];
-  preferredDate: string;
-  preferredTimeSlot: string;
-  customerNotes?: string;
-  organizationId: string;
-}): BookingRequest => {
-  return {
-    id: `REQ-${Date.now().toString().slice(-4)}`,
-    organizationId: params.organizationId,
-    customerName: params.customerName,
-    customerPhone: params.customerPhone,
-    address: params.address,
-    district: params.district,
-    airconType: params.airconType,
-    brand: params.brand,
-    quantity: params.quantity,
-    serviceType: params.serviceType,
-    symptoms: params.symptoms,
-    preferredDate: params.preferredDate,
-    preferredTimeSlot: params.preferredTimeSlot,
-    customerNotes: params.customerNotes,
-    status: 'requested', // Explicitly requested per DEC-04
-    createdAt: new Date().toISOString(),
-  };
-};
-
-test('createBookingRequest creates independent request with requested status', () => {
+test('createBookingRequest from real module creates independent request with requested status', () => {
   const req = createBookingRequest({
     customerName: 'Chị Mai Lan',
     customerPhone: '0908123456',
@@ -56,9 +22,36 @@ test('createBookingRequest creates independent request with requested status', (
 
   assert.equal(req.status, 'requested');
   assert.equal((req as any).assignedTechnicianId, undefined);
-  assert.equal((req as any).status !== 'MOI', true);
   assert.equal(req.organizationId, 'org-dienlanh-saigon');
   assert.equal(req.quantity, 2);
+  assert.equal(req.brand, 'Daikin');
+});
+
+test('validateBookingRequest enforces required fields and Vietnamese phone format', () => {
+  const invalidPhone = validateBookingRequest({
+    customerName: 'Anh Tuấn',
+    customerPhone: '12345',
+    address: '123 Lê Lợi',
+    organizationId: 'org-dienlanh-saigon',
+  });
+  assert.equal(invalidPhone.valid, false);
+  assert.match(invalidPhone.error || '', /định dạng Việt Nam/);
+
+  const missingName = validateBookingRequest({
+    customerName: '',
+    customerPhone: '0908123456',
+    address: '123 Lê Lợi',
+    organizationId: 'org-dienlanh-saigon',
+  });
+  assert.equal(missingName.valid, false);
+
+  const valid = validateBookingRequest({
+    customerName: 'Nguyễn Văn A',
+    customerPhone: '0908123456',
+    address: '123 Lê Lợi',
+    organizationId: 'org-dienlanh-saigon',
+  });
+  assert.equal(valid.valid, true);
 });
 
 test('submitting a booking request does not alter jobs list', () => {
@@ -98,7 +91,7 @@ test('submitting a booking request does not alter jobs list', () => {
 
   const handleBookingCreated = (newReq: BookingRequest) => {
     bookingRequests.push(newReq);
-    // Jobs array is intentionally untouched
+    // Jobs array is intentionally untouched per DEC-04
   };
 
   const newReq = createBookingRequest({
@@ -118,7 +111,6 @@ test('submitting a booking request does not alter jobs list', () => {
 
   handleBookingCreated(newReq);
 
-  // Jobs length remains 1, bookingRequests length becomes 1
   assert.equal(initialJobs.length, 1);
   assert.equal(bookingRequests.length, 1);
   assert.equal(bookingRequests[0].status, 'requested');

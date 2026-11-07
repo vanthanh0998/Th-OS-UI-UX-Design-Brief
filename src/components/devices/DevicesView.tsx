@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Device, Customer, Property, AirconType, StaffUser } from '../../lib/types';
+import { filterByTenant, validateDeviceTenantLink } from '../../lib/tenant-isolation';
 import { Button } from '../ui/Button';
 
 interface DevicesViewProps {
@@ -39,9 +40,9 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
 
   // P0 Tenant Isolation: Filter all entities strictly by currentUser.organizationId
   const currentOrgId = currentUser.organizationId;
-  const tenantDevices = devices.filter((d) => d.organizationId === currentOrgId);
-  const tenantCustomers = customers.filter((c) => c.organizationId === currentOrgId);
-  const tenantProperties = properties.filter((p) => p.organizationId === currentOrgId);
+  const tenantDevices = filterByTenant(devices, currentOrgId);
+  const tenantCustomers = filterByTenant(customers, currentOrgId);
+  const tenantProperties = filterByTenant(properties, currentOrgId);
 
   // Form states (initialized with tenant-scoped entities)
   const [customerId, setCustomerId] = useState(tenantCustomers[0]?.id || '');

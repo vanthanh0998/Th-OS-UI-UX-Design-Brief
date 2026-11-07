@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Property, Customer, Device, StaffUser } from '../../lib/types';
+import { filterByTenant, validateCrossTenantLink } from '../../lib/tenant-isolation';
 import { Button } from '../ui/Button';
 
 interface PropertiesViewProps {
@@ -33,9 +34,9 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
 
   // P0 Tenant Isolation: Filter all entities strictly by currentUser.organizationId
   const currentOrgId = currentUser.organizationId;
-  const tenantProperties = properties.filter((p) => p.organizationId === currentOrgId);
-  const tenantCustomers = customers.filter((c) => c.organizationId === currentOrgId);
-  const tenantDevices = devices.filter((d) => d.organizationId === currentOrgId);
+  const tenantProperties = filterByTenant(properties, currentOrgId);
+  const tenantCustomers = filterByTenant(customers, currentOrgId);
+  const tenantDevices = filterByTenant(devices, currentOrgId);
 
   // Form states (only initialize with customer from the same tenant)
   const [selectedCustomerId, setSelectedCustomerId] = useState(tenantCustomers[0]?.id || '');

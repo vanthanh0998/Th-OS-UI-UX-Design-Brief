@@ -18,6 +18,18 @@ export const INITIAL_ORGANIZATIONS: Organization[] = [
     memberCount: 5,
   },
   {
+    id: 'org-saigon-tanbinh',
+    name: 'Sài Gòn Xanh - Chi nhánh Tân Bình',
+    shortCode: 'SGTB',
+    phone: '028 3844 7777',
+    address: '360 Cộng Hòa, Phường 13, Quận Tân Bình',
+    city: 'TP. Hồ Chí Minh',
+    subscriptionTier: 'standard',
+    subscriptionStatus: 'active',
+    trialEndsAt: '2026-12-31T23:59:59Z',
+    memberCount: 2,
+  },
+  {
     id: 'org-bacnam-service',
     name: 'Cơ Điện Lạnh Bắc Nam Pro',
     shortCode: 'BNP',

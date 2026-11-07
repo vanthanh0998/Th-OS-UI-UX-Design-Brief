@@ -1,40 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Customer, Device, Property, StaffUser, Job } from './types';
-
-export const filterByTenant = <T extends { organizationId: string }>(
-  items: T[],
-  tenantId: string
-): T[] => {
-  return items.filter((item) => item.organizationId === tenantId);
-};
-
-export const validateCrossTenantLink = (
-  property: Property,
-  customer: Customer
-): { valid: boolean; error?: string } => {
-  if (property.organizationId !== customer.organizationId) {
-    return {
-      valid: false,
-      error: 'Không thể gán địa điểm cho khách hàng thuộc tổ chức khác (Tenant mismatch).',
-    };
-  }
-  return { valid: true };
-};
-
-export const validateDeviceTenantLink = (
-  deviceOrgId: string,
-  customerOrgId: string,
-  propertyOrgId: string
-): { valid: boolean; error?: string } => {
-  if (deviceOrgId !== customerOrgId || deviceOrgId !== propertyOrgId) {
-    return {
-      valid: false,
-      error: 'Dữ liệu thiết bị, khách hàng và địa điểm phải thuộc cùng một tổ chức.',
-    };
-  }
-  return { valid: true };
-};
+import { filterByTenant, validateCrossTenantLink, validateDeviceTenantLink } from './tenant-isolation';
+import { Customer, Property } from './types';
 
 test('filterByTenant strictly separates data between Org A and Org B', () => {
   const customers: Customer[] = [
@@ -69,7 +36,7 @@ test('filterByTenant strictly separates data between Org A and Org B', () => {
 
 test('validateCrossTenantLink rejects associating property to a customer from another tenant', () => {
   const property: Property = {
-    id: 'p1',
+    id: 'prop-01',
     organizationId: 'org-dienlanh-saigon',
     customerId: 'c1',
     label: 'Căn hộ Masteri',

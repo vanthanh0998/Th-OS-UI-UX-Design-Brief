@@ -53,7 +53,13 @@ import {
 } from './lib/mock-data';
 import { getNextStatus, STATUS_MAP } from './lib/status-machine';
 import { calculateJobTotal } from './lib/pricing';
-import { computePaymentStatusFromLedger } from './lib/payment-ledger';
+import {
+  recordPaymentLedgerEntry,
+  reportPaymentByTechnician,
+  computePaymentStatusFromLedger,
+} from './lib/payment-ledger';
+import { filterByTenant } from './lib/tenant-isolation';
+import { switchOrganizationContext, INITIAL_MEMBERSHIPS } from './lib/org-membership';
 import { JobDetailModal } from './components/technician/JobDetailModal';
 import { ElectronicInvoiceModal } from './components/technician/ElectronicInvoiceModal';
 import { TechnicianDashboard } from './components/technician/TechnicianDashboard';
@@ -164,38 +170,65 @@ export default function App() {
     }
   };
 
-  // Payment confirmation - records to payment ledger dynamically without hardcoding
+  // Dynamic Payment Ledger Confirmation (P0-02 & P0-03)
   const handleConfirmPayment = (
     jobId: string,
     amount: number,
     method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR',
     type: PaymentTransactionType = 'payment',
+    reason?: string,
+    notes?: string,
+    idempotencyKey?: string
+  ): { success: boolean; error?: string } => {
+    const targetJob = jobs.find((j) => j.id === jobId);
+    if (!targetJob) {
+      return { success: false, error: 'Không tìm thấy ca làm việc.' };
+    }
+
+    const res = recordPaymentLedgerEntry({
+      job: targetJob,
+      currentUser,
+      amount,
+      type,
+      method,
+      reason,
+      notes,
+      idempotencyKey,
+    });
+
+    if (!res.success || !res.updatedJob) {
+      return { success: false, error: res.error || 'Ghi nhận sổ cái thất bại.' };
+    }
+
+    handleUpdateJob(res.updatedJob);
+    if (invoiceJob && invoiceJob.id === jobId) {
+      setInvoiceJob(res.updatedJob);
+    }
+    return { success: true };
+  };
+
+  // Technician payment report without direct ledger confirmation (P0-02)
+  const handleReportPaymentByTech = (
+    jobId: string,
+    amount: number,
+    method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR',
     notes?: string
   ) => {
-    setJobs((prev) =>
-      prev.map((j) => {
-        if (j.id !== jobId) return j;
-        const newEntry: PaymentLedgerEntry = {
-          id: `LEDGER-${Date.now()}`,
-          jobId,
-          amount,
-          type,
-          method,
-          recordedBy: currentUser.fullName,
-          recordedAt: new Date().toISOString(),
-          notes,
-        };
-        const updatedEntries = [...(j.paymentEntries || []), newEntry];
-        const pricing = calculateJobTotal(j.selectedServices, j.spareParts, j.discount);
-        const dynamicStatus = computePaymentStatusFromLedger(pricing.totalPayable, updatedEntries);
+    const targetJob = jobs.find((j) => j.id === jobId);
+    if (!targetJob) {
+      return { success: false, message: '', error: 'Không tìm thấy ca làm việc.' };
+    }
 
-        return {
-          ...j,
-          paymentStatus: dynamicStatus,
-          paymentEntries: updatedEntries,
-        };
-      })
-    );
+    const res = reportPaymentByTechnician(targetJob, currentUser, { amount, method, notes });
+    if (!res.success) {
+      return { success: false, message: '', error: res.error };
+    }
+
+    handleUpdateJob(res.job);
+    if (invoiceJob && invoiceJob.id === jobId) {
+      setInvoiceJob(res.job);
+    }
+    return { success: true, message: res.message };
   };
 
   // P0 Invariant: Homeowner booking creates independent BookingRequest with status 'requested'
@@ -217,145 +250,286 @@ export default function App() {
   const trackedJob = jobs.find((j) => j.id === currentCustomerJobId) || jobs[0];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-24 md:pb-12 font-sans selection:bg-[#0d9488]/20 selection:text-[#0d9488]">
-      {/* Offline Status Banner (P1 Requirement: truthful statement, no false auto-sync promise) */}
-      {isOffline && (
-        <div className="bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm animate-fadeIn">
-          <WifiOff className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">
-            Mất kết nối mạng: Bạn đang xem dữ liệu lưu trên thiết bị. Các thao tác ghi cần kết nối Internet.
-          </span>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-[#0d9488]/20 selection:text-[#0d9488] flex flex-col lg:flex-row">
+      {/* 1. DESKTOP MODERN NAVY SIDEBAR (Hidden on mobile < lg) */}
+      <aside className="hidden lg:flex w-64 bg-[#0a1e3f] text-slate-300 flex-col justify-between shrink-0 h-screen sticky top-0 border-r border-slate-800/90 select-none z-30 shadow-xl">
+        {/* Top: Brand Header & Tenant Switcher Card */}
+        <div className="p-4 space-y-4">
+          {/* Brand Logo */}
+          <div className="flex items-center gap-2.5 px-2 pt-1">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 text-slate-950 flex items-center justify-center font-black shadow-md shadow-teal-500/20 shrink-0">
+              <Snowflake className="w-5 h-5 text-slate-950" />
+            </div>
+            <div>
+              <span className="font-black text-xl text-white tracking-tight block leading-none">
+                ThợOS
+              </span>
+              <span className="text-[11px] font-semibold text-teal-400 tracking-wider uppercase block mt-1">
+                Field Service OS
+              </span>
+            </div>
+          </div>
+
+          {/* Current Tenant Switcher Card */}
+          <div
+            onClick={() => setIsSwitchOrgModalOpen(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-all space-y-1.5"
+            title="Bấm để chuyển đổi tổ chức"
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-teal-300 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                Workspace
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 px-1.5 py-0.2 rounded border border-teal-500/30">
+                {currentOrg.shortCode}
+              </span>
+            </div>
+            <div className="font-bold text-white text-xs truncate flex items-center justify-between">
+              <span className="truncate">{currentOrg.name}</span>
+              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+            </div>
+          </div>
+
+          {/* Navigation Menu Links */}
+          <nav className="space-y-6 pt-2">
+            {/* Group 1: Vận hành & CRM */}
+            <div className="space-y-1">
+              <div className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                Vận hành & CRM
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('CUSTOMERS')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'CUSTOMERS'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Users className="w-4 h-4 text-teal-400" />
+                <span>Khách hàng</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('PROPERTIES')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'PROPERTIES'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <MapPin className="w-4 h-4 text-teal-400" />
+                <span>Địa điểm & Căn hộ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('DEVICES')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'DEVICES'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Airplay className="w-4 h-4 text-teal-400" />
+                <span>Thiết bị & QR Code</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('MEMBERS')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'MEMBERS'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Shield className="w-4 h-4 text-teal-400" />
+                <span>Đội ngũ thợ</span>
+              </button>
+            </div>
+
+            {/* Group 2: Điều phối & Hiện trường */}
+            <div className="space-y-1">
+              <div className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                Điều phối & Hiện trường
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('TECHNICIAN_JOBS')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'TECHNICIAN_JOBS'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Wrench className="w-4 h-4 text-teal-400" />
+                <span>Lịch thợ hôm nay</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('BOOKING_FLOW')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'BOOKING_FLOW'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Calendar className="w-4 h-4 text-teal-400" />
+                <span>Đặt lịch dịch vụ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('CUSTOMER_TRACKING')}
+                className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'CUSTOMER_TRACKING'
+                    ? 'bg-teal-500/20 text-teal-300 border-l-4 border-teal-400 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Clock className="w-4 h-4 text-teal-400" />
+                <span>Theo dõi tiến độ</span>
+              </button>
+            </div>
+          </nav>
+        </div>
+
+        {/* Bottom: User Profile Pill & Demo Tools Trigger */}
+        <div className="p-3 border-t border-white/10 space-y-2">
+          {/* User Profile Trigger */}
+          <div
+            onClick={() => setIsAuthModalOpen(true)}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer flex items-center gap-3 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-300 font-bold flex items-center justify-center text-xs shrink-0 border border-teal-500/30">
+              {currentUser.fullName.charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-xs text-white truncate">{currentUser.fullName}</div>
+              <div className="text-[10px] text-teal-300 font-medium capitalize">
+                {currentUser.role === 'owner' ? 'Chủ cơ sở (Owner)' : currentUser.role === 'manager' ? 'Quản lý (Manager)' : 'Kỹ thuật viên'}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Demo & Review Tools Trigger */}
           <button
             type="button"
-            onClick={() => setIsOffline(false)}
-            className="ml-1 underline text-white hover:text-amber-200 shrink-0"
+            onClick={() => setIsDemoToolsOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] text-slate-400 hover:text-teal-300 rounded-lg transition-colors font-medium"
           >
-            Bật lại
+            <Sliders className="w-3.5 h-3.5 text-teal-400" />
+            <span>Công cụ Demo & Review</span>
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* Top Application Header - Streamlined Single Row */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 w-full">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 h-14 sm:h-16">
-          {/* Left: Brand & Org Switcher */}
-          <div className="flex items-center gap-2 min-w-0 shrink">
-            <div className="w-8 h-8 rounded-xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center shadow-xs shrink-0">
-              <Snowflake className="w-4 h-4 sm:w-5 sm:h-5" />
+      {/* 2. MAIN APPLICATION WORKSPACE */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+        {/* Offline Status Banner */}
+        {isOffline && (
+          <div className="bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm animate-fadeIn">
+            <WifiOff className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">
+              Mất kết nối mạng: Bạn đang xem dữ liệu lưu trên thiết bị. Các thao tác ghi cần kết nối Internet.
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOffline(false)}
+              className="ml-1 underline text-white hover:text-amber-200 shrink-0"
+            >
+              Bật lại
+            </button>
+          </div>
+        )}
+
+        {/* Top Bar (Single Sleek Row on Desktop & Mobile) */}
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 h-14 sm:h-16 flex items-center justify-between">
+          {/* Left: Mobile Brand OR Desktop Context Breadcrumb */}
+          <div className="flex items-center gap-3">
+            {/* Mobile Brand (Hidden on Desktop) */}
+            <div className="flex items-center gap-2 lg:hidden">
+              <div className="w-8 h-8 rounded-xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center shadow-xs shrink-0">
+                <Snowflake className="w-4 h-4" />
+              </div>
+              <span className="font-black text-base text-[#0a1e3f] tracking-tight">ThợOS</span>
+              <button
+                type="button"
+                onClick={() => setIsSwitchOrgModalOpen(true)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-[11px] font-bold text-teal-800 border border-slate-200"
+              >
+                <span>{currentOrg.shortCode}</span>
+              </button>
             </div>
-            <span className="font-black text-base sm:text-lg text-[#0a1e3f] tracking-tight shrink-0">ThợOS</span>
+
+            {/* Desktop Context Breadcrumb */}
+            <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 font-medium">
+              <span>{currentOrg.name}</span>
+              <span className="text-slate-300">/</span>
+              <span className="font-bold text-slate-900">
+                {activeTab === 'CUSTOMERS'
+                  ? 'Danh bạ Khách hàng'
+                  : activeTab === 'PROPERTIES'
+                  ? 'Địa điểm & Căn hộ'
+                  : activeTab === 'DEVICES'
+                  ? 'Thiết bị & QR Code'
+                  : activeTab === 'MEMBERS'
+                  ? 'Đội ngũ thợ'
+                  : activeTab === 'TECHNICIAN_JOBS'
+                  ? 'Lịch thợ hôm nay'
+                  : activeTab === 'BOOKING_FLOW'
+                  ? 'Đặt lịch dịch vụ'
+                  : 'Theo dõi tiến độ'}
+              </span>
+            </div>
+          </div>
+
+          {/* Right Controls */}
+          <div className="flex items-center gap-2">
+            {/* Desktop Organization Switcher Pill */}
             <button
               type="button"
               onClick={() => setIsSwitchOrgModalOpen(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 transition-colors border border-slate-200/80 shrink truncate"
-              title={`Đổi tổ chức: ${currentOrg.name}`}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-xs font-semibold text-slate-800 transition-colors border border-slate-200/80"
             >
-              <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
-              <span className="hidden sm:inline truncate max-w-[120px]">{currentOrg.name}</span>
-              <span className="text-[10px] text-teal-800 bg-teal-100/80 px-1 py-0.2 rounded uppercase font-bold shrink-0">
-                {currentOrg.shortCode}
-              </span>
-            </button>
-          </div>
-
-          {/* Center: Desktop Navigation Bar */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
-            <button
-              type="button"
-              onClick={() => setActiveTab('CUSTOMERS')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'CUSTOMERS'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Khách hàng</span>
+              <Building2 className="w-3.5 h-3.5 text-teal-600" />
+              <span className="truncate max-w-[140px]">{currentOrg.name}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('PROPERTIES')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'PROPERTIES'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span>Địa điểm</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('DEVICES')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'DEVICES'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Airplay className="w-3.5 h-3.5" />
-              <span>Máy lạnh & QR</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('MEMBERS')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'MEMBERS'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>Đội thợ</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('TECHNICIAN_JOBS')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'TECHNICIAN_JOBS'
-                  ? 'bg-[#0a1e3f] text-white shadow-xs font-bold'
-                  : 'text-slate-700 hover:text-slate-900'
-              }`}
-            >
-              <Wrench className="w-3.5 h-3.5" />
-              <span>Lịch thợ</span>
-            </button>
-          </nav>
-
-          {/* Right: Staff Profile & Dedicated Demo / Review Tools Button */}
-          <div className="flex items-center gap-1.5 shrink-0">
+            {/* User Profile Avatar */}
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs transition-all shadow-xs"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs transition-all shadow-xs"
               title={`Người dùng: ${currentUser.fullName}`}
             >
-              <div className="w-6 h-6 rounded-lg bg-teal-50 text-teal-800 font-bold flex items-center justify-center text-xs">
+              <div className="w-6 h-6 rounded-lg bg-[#0a1e3f] text-teal-300 font-bold flex items-center justify-center text-xs">
                 {currentUser.fullName.charAt(0)}
               </div>
-              <span className="font-semibold text-slate-900 hidden sm:inline">{currentUser.fullName}</span>
+              <span className="font-bold text-slate-900 hidden md:inline">{currentUser.fullName}</span>
             </button>
 
-            {/* Dedicated Review Tools Button (Replaces all noisy QC toolbars) */}
+            {/* Demo Tools Button */}
             <button
               type="button"
               onClick={() => setIsDemoToolsOpen(true)}
-              title="Design Review & Demo Tools"
-              className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all shadow-xs"
+              title="Công cụ Demo & Review"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all shadow-xs"
             >
               <Sliders className="w-3.5 h-3.5 text-teal-600" />
               <span className="hidden sm:inline">Demo Tools</span>
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-4">
+        {/* Main Content Viewport */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 lg:pb-12">
         {/* State Feedback Display if Active */}
         {feedbackState !== 'NONE' && (
           <div className="mb-5">
@@ -416,7 +590,7 @@ export default function App() {
         {/* TAB 5: TECHNICIAN DASHBOARD (Filtered by current organization tenant) */}
         {activeTab === 'TECHNICIAN_JOBS' && (
           <TechnicianDashboard
-            jobs={jobs.filter((j) => j.organizationId === currentOrg.id)}
+            jobs={filterByTenant(jobs, currentOrg.id)}
             technicianName={currentUser.fullName}
             onOpenDetails={(j) => {
               setSelectedJob(j);
@@ -477,66 +651,65 @@ export default function App() {
             />
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
-      {/* Mobile Ergonomic Bottom Bar */}
+      {/* Mobile Ergonomic Bottom Bar (lg:hidden) */}
       <nav
         aria-label="Thanh điều hướng di động"
-        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-2 px-3 flex items-center justify-around md:hidden shadow-lg"
+        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-2 flex items-center justify-around lg:hidden shadow-lg"
       >
         <button
           type="button"
           onClick={() => setActiveTab('CUSTOMERS')}
-          className={`flex flex-col items-center gap-1 py-1 touch-target ${
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
             activeTab === 'CUSTOMERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
           }`}
         >
           <Users className="w-5 h-5" />
-          <span className="text-[10px]">Khách hàng</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('PROPERTIES')}
-          className={`flex flex-col items-center gap-1 py-1 touch-target ${
-            activeTab === 'PROPERTIES' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
-          }`}
-        >
-          <MapPin className="w-5 h-5" />
-          <span className="text-[10px]">Địa điểm</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('DEVICES')}
-          className={`flex flex-col items-center gap-1 py-1 touch-target ${
-            activeTab === 'DEVICES' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
-          }`}
-        >
-          <Airplay className="w-5 h-5" />
-          <span className="text-[10px]">Máy lạnh</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('MEMBERS')}
-          className={`flex flex-col items-center gap-1 py-1 touch-target ${
-            activeTab === 'MEMBERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
-          }`}
-        >
-          <Shield className="w-5 h-5" />
-          <span className="text-[10px]">Đội thợ</span>
+          <span className="text-[11px] font-bold">Khách hàng</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('TECHNICIAN_JOBS')}
-          className={`flex flex-col items-center gap-1 py-1 touch-target ${
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
             activeTab === 'TECHNICIAN_JOBS' ? 'text-[#0d9488] font-black' : 'text-slate-500'
           }`}
         >
-          <Wrench className="w-5 h-5" />
-          <span className="text-[10px]">Lịch thợ</span>
+          <Wrench className="w-5 h-5 text-teal-600" />
+          <span className="text-[11px] font-bold">Lịch thợ</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('DEVICES')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'DEVICES' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
+          }`}
+        >
+          <Airplay className="w-5 h-5" />
+          <span className="text-[11px] font-bold">Máy lạnh</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('MEMBERS')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'MEMBERS' ? 'text-[#0a1e3f] font-black' : 'text-slate-500'
+          }`}
+        >
+          <Shield className="w-5 h-5" />
+          <span className="text-[11px] font-bold">Đội thợ</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsDemoToolsOpen(true)}
+          className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-500 transition-all"
+        >
+          <Sliders className="w-5 h-5 text-slate-400" />
+          <span className="text-[11px] font-bold">Thêm</span>
         </button>
       </nav>
 
@@ -552,23 +725,31 @@ export default function App() {
         }}
       />
 
-      {/* Switch Organization Tenant Modal (P0 Tenant Isolation: resets selection and verifies membership) */}
+      {/* Switch Organization Tenant Modal (P0-01: verifies membership and preserves user identity) */}
       <SwitchOrganizationModal
         isOpen={isSwitchOrgModalOpen}
         onClose={() => setIsSwitchOrgModalOpen(false)}
         organizations={organizations}
         currentOrg={currentOrg}
+        currentUser={currentUser}
         onSelectOrg={(org) => {
+          const switchResult = switchOrganizationContext({
+            currentUser,
+            targetOrg: org,
+            memberships: INITIAL_MEMBERSHIPS,
+          });
+
+          if (!switchResult.success || !switchResult.updatedUser) {
+            alert(switchResult.error || 'Từ chối truy cập: Bạn không có tư cách thành viên hợp lệ tại tổ chức này.');
+            return;
+          }
+
           setCurrentOrg(org);
+          setCurrentUser(switchResult.updatedUser);
+          // P0-01: Reset selected records and form state on tenant switch
           setSelectedJob(null);
           setInvoiceJob(null);
-          // Verify user membership in switched organization
-          const matchedStaff = staffUsers.find((u) => u.organizationId === org.id);
-          if (matchedStaff) {
-            setCurrentUser(matchedStaff);
-          } else {
-            setCurrentUser((prev) => ({ ...prev, organizationId: org.id }));
-          }
+          setCurrentCustomerJobId('');
         }}
       />
 
@@ -592,6 +773,7 @@ export default function App() {
         onClose={() => setIsInvoiceModalOpen(false)}
         currentUser={currentUser}
         onConfirmPayment={handleConfirmPayment}
+        onReportPaymentByTech={handleReportPaymentByTech}
       />
 
       {/* Sprint 1 Design Tokens & Wireframes Documentation Modal */}
