@@ -51,7 +51,13 @@ import {
   INITIAL_JOBS,
   INITIAL_BOOKING_REQUESTS,
 } from './lib/mock-data';
-import { getNextStatus, STATUS_MAP } from './lib/status-machine';
+import {
+  getNextStatus,
+  STATUS_MAP,
+  validateJobTransition,
+  canPerformWriteOperation,
+  getVisibleJobsForUser,
+} from './lib/status-machine';
 import { calculateJobTotal } from './lib/pricing';
 import {
   recordPaymentLedgerEntry,
@@ -148,29 +154,63 @@ export default function App() {
     }
   }, [jobs]);
 
-  // Handlers for Jobs
+  // Handlers for Jobs with P0/P1 business policy guards
   const handleUpdateJob = (updatedJob: Job) => {
+    // 1. Subscription write protection (P1)
+    const writeCheck = canPerformWriteOperation(currentOrg);
+    if (!writeCheck.allowed) {
+      alert(writeCheck.error);
+      return;
+    }
+
+    // 2. Technician scoping guard: Technicians cannot operate on jobs assigned to others (P1)
+    if (
+      currentUser.role === 'technician' &&
+      updatedJob.assignedTechnicianId &&
+      updatedJob.assignedTechnicianId !== currentUser.id
+    ) {
+      alert(`Từ chối thao tác: Ca #${updatedJob.id} không được phân công cho bạn.`);
+      return;
+    }
+
     setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
     if (selectedJob && selectedJob.id === updatedJob.id) {
       setSelectedJob(updatedJob);
     }
   };
 
-  // Quick status step advancement
+  // Quick status step advancement with Unified Transition Guard (P0-02, P0-01, P1)
   const handleQuickAction = (job: Job) => {
     const next = getNextStatus(job.status);
-    if (next) {
-      const updated: Job = {
-        ...job,
-        status: next,
-        completedAt: next === 'HOAN_THANH' ? new Date().toISOString() : job.completedAt,
-      };
-      handleUpdateJob(updated);
-      // NOTE: Hoàn thành kỹ thuật tách biệt với mở phiếu thu DEC-03
+    if (!next) return;
+
+    // Unified Business Transition Guard
+    const validation = validateJobTransition({
+      job,
+      targetStatus: next,
+      currentUser,
+      currentOrg,
+    });
+
+    if (!validation.allowed) {
+      if (validation.code === 'QUO_001_REQUIRED') {
+        setSelectedJob(job);
+        setIsDetailModalOpen(true);
+        return;
+      }
+      alert(validation.error || 'Thao tác chuyển trạng thái không hợp lệ theo quy định nghiệp vụ.');
+      return;
     }
+
+    const updated: Job = {
+      ...job,
+      status: next,
+      completedAt: next === 'HOAN_THANH' ? new Date().toISOString() : job.completedAt,
+    };
+    handleUpdateJob(updated);
   };
 
-  // Dynamic Payment Ledger Confirmation (P0-02 & P0-03)
+  // Dynamic Payment Ledger Confirmation (P0-02 & P0-03 & P1)
   const handleConfirmPayment = (
     jobId: string,
     amount: number,
@@ -180,6 +220,12 @@ export default function App() {
     notes?: string,
     idempotencyKey?: string
   ): { success: boolean; error?: string } => {
+    // Subscription write guard
+    const writeCheck = canPerformWriteOperation(currentOrg);
+    if (!writeCheck.allowed) {
+      return { success: false, error: writeCheck.error };
+    }
+
     const targetJob = jobs.find((j) => j.id === jobId);
     if (!targetJob) {
       return { success: false, error: 'Không tìm thấy ca làm việc.' };
@@ -207,13 +253,19 @@ export default function App() {
     return { success: true };
   };
 
-  // Technician payment report without direct ledger confirmation (P0-02)
+  // Technician payment report without direct ledger confirmation (P0-02 & P1)
   const handleReportPaymentByTech = (
     jobId: string,
     amount: number,
     method: 'TIEN_MAT' | 'CHUYEN_KHOAN_QR',
     notes?: string
   ) => {
+    // Subscription write guard
+    const writeCheck = canPerformWriteOperation(currentOrg);
+    if (!writeCheck.allowed) {
+      return { success: false, message: '', error: writeCheck.error };
+    }
+
     const targetJob = jobs.find((j) => j.id === jobId);
     if (!targetJob) {
       return { success: false, message: '', error: 'Không tìm thấy ca làm việc.' };
@@ -237,15 +289,60 @@ export default function App() {
     setBookingRequests((prev) => [newRequest, ...prev]);
   };
 
-  // Handlers for Sprint 1 Entities
-  const handleAddCustomer = (c: Customer) => setCustomers([c, ...customers]);
-  const handleUpdateCustomer = (c: Customer) =>
+  // Handlers for Sprint 1 Entities with Subscription Write Guard (P1)
+  const handleAddCustomer = (c: Customer) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
+    setCustomers([c, ...customers]);
+  };
+
+  const handleUpdateCustomer = (c: Customer) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
     setCustomers(customers.map((cust) => (cust.id === c.id ? c : cust)));
-  const handleAddProperty = (p: Property) => setProperties([p, ...properties]);
-  const handleAddDevice = (d: Device) => setDevices([d, ...devices]);
-  const handleAddMember = (u: StaffUser) => setStaffUsers([...staffUsers, u]);
-  const handleUpdateRole = (userId: string, newRole: StaffRole) =>
+  };
+
+  const handleAddProperty = (p: Property) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
+    setProperties([p, ...properties]);
+  };
+
+  const handleAddDevice = (d: Device) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
+    setDevices([d, ...devices]);
+  };
+
+  const handleAddMember = (u: StaffUser) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
+    setStaffUsers([...staffUsers, u]);
+  };
+
+  const handleUpdateRole = (userId: string, newRole: StaffRole) => {
+    const check = canPerformWriteOperation(currentOrg);
+    if (!check.allowed) {
+      alert(check.error);
+      return;
+    }
     setStaffUsers(staffUsers.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
+  };
 
   const trackedJob = jobs.find((j) => j.id === currentCustomerJobId) || jobs[0];
 
@@ -587,10 +684,10 @@ export default function App() {
           />
         )}
 
-        {/* TAB 5: TECHNICIAN DASHBOARD (Filtered by current organization tenant) */}
+        {/* TAB 5: TECHNICIAN DASHBOARD (Scoped by role & assigned technician P1) */}
         {activeTab === 'TECHNICIAN_JOBS' && (
           <TechnicianDashboard
-            jobs={filterByTenant(jobs, currentOrg.id)}
+            jobs={getVisibleJobsForUser(jobs, currentUser, currentOrg.id)}
             technicianName={currentUser.fullName}
             onOpenDetails={(j) => {
               setSelectedJob(j);
@@ -759,6 +856,8 @@ export default function App() {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         onUpdateJob={handleUpdateJob}
+        currentUser={currentUser}
+        currentOrg={currentOrg}
         onOpenInvoice={(job) => {
           setIsDetailModalOpen(false);
           setInvoiceJob(job);

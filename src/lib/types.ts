@@ -187,7 +187,24 @@ export interface UserMembership {
   joinedAt: string;
 }
 
-// Quotation revision per QUO-001
+// Quotation revision per QUO-001 (Immutable snapshot, deterministic hash, customer evidence)
+export interface QuotationApprovalEvidence {
+  approvedByCustomer: boolean;
+  approverName: string;
+  approvedAt: string; // ISO 8601
+  approvedRevisionNumber: number;
+  hash: string;
+  notes?: string;
+}
+
+export interface QuotationWaiverEvidence {
+  waived: boolean;
+  waiverReason: string;
+  customerAcknowledged: boolean;
+  waivedAt: string; // ISO 8601
+  waivedBy: string; // Staff user name
+}
+
 export interface QuotationRevision {
   revisionNumber: number;
   hash: string;
@@ -197,8 +214,13 @@ export interface QuotationRevision {
   total: number;
   status: 'draft' | 'pending_homeowner' | 'approved' | 'rejected' | 'waived';
   waiverReason?: string;
+  customerAcknowledged?: boolean;
   createdAt: string;
   approvedAt?: string;
+  approverName?: string;
+  approvedByCustomer?: boolean;
+  approvalEvidence?: QuotationApprovalEvidence;
+  waiverEvidence?: QuotationWaiverEvidence;
 }
 
 export interface Job {

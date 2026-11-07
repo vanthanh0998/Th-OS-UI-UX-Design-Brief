@@ -16,15 +16,25 @@ import {
   Gauge,
   Zap,
   ArrowRight,
-  Sparkles,
+  FileText,
+  Lock,
+  Unlock,
+  Check,
+  History,
 } from 'lucide-react';
-import { Job, JobStatus, SparePartItem } from '../../lib/types';
-import { ORDERED_STATUSES, STATUS_MAP, canTransitionTo } from '../../lib/status-machine';
-import { COMMON_SPARE_PARTS, SERVICE_CATALOG, calculateJobTotal, formatVND } from '../../lib/pricing';
+import { Job, JobStatus, SparePartItem, StaffUser, Organization, QuotationRevision } from '../../lib/types';
+import {
+  ORDERED_STATUSES,
+  STATUS_MAP,
+  canTransitionTo,
+  validateJobTransition,
+  hasValidQuotationAuthorization,
+  computeQuotationHash,
+} from '../../lib/status-machine';
+import { COMMON_SPARE_PARTS, calculateJobTotal, formatVND } from '../../lib/pricing';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Input } from '../ui/Input';
 
 interface JobDetailModalProps {
   job: Job | null;
@@ -32,6 +42,8 @@ interface JobDetailModalProps {
   onClose: () => void;
   onUpdateJob: (updatedJob: Job) => void;
   onOpenInvoice: (job: Job) => void;
+  currentUser?: StaffUser;
+  currentOrg?: Organization;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -40,6 +52,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onClose,
   onUpdateJob,
   onOpenInvoice,
+  currentUser,
+  currentOrg,
 }) => {
   if (!job) return null;
 
@@ -47,6 +61,16 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState('');
   const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
+  const [guardError, setGuardError] = useState<string | null>(null);
+
+  // QUO-001 Approval / Waiver Form States
+  const [approverName, setApproverName] = useState(job.customerName || '');
+  const [customerApprovedCheck, setCustomerApprovedCheck] = useState(false);
+  const [waiverReason, setWaiverReason] = useState(
+    'Bảo trì vệ sinh điều hòa định kỳ theo giá niêm yết chuẩn, không phát sinh linh kiện thay thế.'
+  );
+  const [customerWaiverCheck, setCustomerWaiverCheck] = useState(false);
+  const [showWaiverForm, setShowWaiverForm] = useState(false);
 
   // Editable fields local state
   const [checklist, setChecklist] = useState(job.checklist);
@@ -54,6 +78,11 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [discount, setDiscount] = useState<number>(job.discount || 0);
 
   const pricing = calculateJobTotal(job.selectedServices, spareParts, discount);
+  const isAuthorizedForRepair = hasValidQuotationAuthorization(job);
+  const latestRevision: QuotationRevision | undefined =
+    job.quotationRevisions && job.quotationRevisions.length > 0
+      ? job.quotationRevisions[job.quotationRevisions.length - 1]
+      : undefined;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(`${job.address}, ${job.district}`);
@@ -62,7 +91,29 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   };
 
   const handleStatusTransition = (nextStatus: JobStatus) => {
-    if (!canTransitionTo(job.status, nextStatus)) return;
+    setGuardError(null);
+
+    // Business Transition Guard (P0-02, P0-01, P1)
+    if (currentUser && currentOrg) {
+      const validation = validateJobTransition({
+        job: { ...job, checklist, spareParts, discount },
+        targetStatus: nextStatus,
+        currentUser,
+        currentOrg,
+      });
+
+      if (!validation.allowed) {
+        setGuardError(validation.error || 'Thao tác chuyển trạng thái bị chặn bởi chính sách nghiệp vụ.');
+        if (validation.code === 'QUO_001_REQUIRED') {
+          setActiveTab('QUOTATION');
+        }
+        return;
+      }
+    } else if (!canTransitionTo(job.status, nextStatus)) {
+      setGuardError('Thứ tự trạng thái không hợp lệ.');
+      return;
+    }
+
     const updated: Job = {
       ...job,
       status: nextStatus,
@@ -82,6 +133,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
       discount,
     };
     onUpdateJob(updated);
+    setApprovalNotice('Đã lưu biên bản kỹ thuật.');
+    setTimeout(() => setApprovalNotice(null), 2500);
   };
 
   const handleAddSparePart = () => {
@@ -108,6 +161,148 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
     onUpdateJob({ ...job, spareParts: updated });
   };
 
+  // QUO-001 Step 1: Create deterministic snapshot revision & submit for homeowner review
+  const handleCreateAndSendRevision = () => {
+    setGuardError(null);
+    const revNumber = (job.quotationRevisions?.length || 0) + 1;
+    const now = new Date().toISOString();
+
+    const snapshotItems = [
+      ...job.selectedServices.map((s) => ({
+        description: s.serviceId,
+        price: s.price,
+        quantity: s.quantity,
+      })),
+      ...spareParts.map((p) => ({
+        description: `${p.name} (Bảo hành ${p.warrantyMonths} tháng)`,
+        price: p.unitPrice,
+        quantity: p.quantity,
+      })),
+    ];
+
+    const hash = computeQuotationHash(revNumber, snapshotItems, pricing.totalPayable, now);
+
+    const newRevision: QuotationRevision = {
+      revisionNumber: revNumber,
+      hash,
+      items: snapshotItems,
+      subtotal: pricing.subtotalServices + pricing.subtotalParts,
+      discount: pricing.discountAmount,
+      total: pricing.totalPayable,
+      status: 'pending_homeowner', // Immutable snapshot awaiting customer confirmation
+      createdAt: now,
+    };
+
+    const updatedJob: Job = {
+      ...job,
+      status: 'BAO_GIA',
+      spareParts,
+      discount,
+      quotationRevisions: [...(job.quotationRevisions || []), newRevision],
+    };
+
+    onUpdateJob(updatedJob);
+    setApprovalNotice(`Đã lập Báo giá ${hash} và chuyển trạng thái Chờ duyệt giá.`);
+    setTimeout(() => setApprovalNotice(null), 3500);
+  };
+
+  // QUO-001 Step 2: Record verified customer approval evidence
+  const handleConfirmCustomerApproval = (revNumber: number) => {
+    if (!customerApprovedCheck) {
+      setGuardError('Vui lòng xác nhận khách hàng đã đồng ý nội dung báo giá.');
+      return;
+    }
+    if (!approverName.trim()) {
+      setGuardError('Vui lòng nhập tên người xác nhận phê duyệt (khách hàng hoặc đại diện).');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const updatedRevisions = (job.quotationRevisions || []).map((rev) => {
+      if (rev.revisionNumber === revNumber) {
+        return {
+          ...rev,
+          status: 'approved' as const,
+          approvedByCustomer: true,
+          approverName: approverName.trim(),
+          approvedAt: now,
+          approvalEvidence: {
+            approvedByCustomer: true,
+            approverName: approverName.trim(),
+            approvedAt: now,
+            approvedRevisionNumber: revNumber,
+            hash: rev.hash,
+            notes: 'Khách hàng xác nhận đồng ý trực tiếp / bằng văn bản',
+          },
+        };
+      }
+      return rev;
+    });
+
+    const updatedJob: Job = {
+      ...job,
+      quotationRevisions: updatedRevisions,
+    };
+
+    onUpdateJob(updatedJob);
+    setGuardError(null);
+    setApprovalNotice(`Đã ghi nhận bằng chứng khách hàng ký duyệt #${revNumber}! Có thể bắt đầu sửa chữa.`);
+    setTimeout(() => setApprovalNotice(null), 3500);
+  };
+
+  // QUO-001 Step 3: Record valid quotation waiver evidence
+  const handleConfirmQuotationWaiver = () => {
+    if (!customerWaiverCheck) {
+      setGuardError('Vui lòng tích xác nhận khách hàng đã đồng ý miễn trừ lập báo giá.');
+      return;
+    }
+    if (!waiverReason.trim() || waiverReason.trim().length < 5) {
+      setGuardError('Vui lòng nhập lý do miễn trừ báo giá rõ ràng (tối thiểu 5 ký tự).');
+      return;
+    }
+
+    const revNumber = (job.quotationRevisions?.length || 0) + 1;
+    const now = new Date().toISOString();
+
+    const snapshotItems = job.selectedServices.map((s) => ({
+      description: s.serviceId,
+      price: s.price,
+      quantity: s.quantity,
+    }));
+
+    const waiverRevision: QuotationRevision = {
+      revisionNumber: revNumber,
+      hash: `WAIVER-${revNumber}`,
+      items: snapshotItems,
+      subtotal: pricing.subtotalServices,
+      discount: 0,
+      total: pricing.totalPayable,
+      status: 'waived',
+      waiverReason: waiverReason.trim(),
+      customerAcknowledged: true,
+      createdAt: now,
+      approvedAt: now,
+      waiverEvidence: {
+        waived: true,
+        waiverReason: waiverReason.trim(),
+        customerAcknowledged: true,
+        waivedAt: now,
+        waivedBy: currentUser?.fullName || 'Kỹ thuật viên',
+      },
+    };
+
+    const updatedJob: Job = {
+      ...job,
+      quotationRevisions: [...(job.quotationRevisions || []), waiverRevision],
+    };
+
+    onUpdateJob(updatedJob);
+    setShowWaiverForm(false);
+    setGuardError(null);
+    setApprovalNotice('Đã ghi nhận Biên bản miễn trừ báo giá hợp lệ! Đủ điều kiện bắt đầu sửa chữa.');
+    setTimeout(() => setApprovalNotice(null), 3500);
+  };
+
   const handleAddDemoPhoto = (type: 'before' | 'after') => {
     const demoPhotos = [
       'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23e2e8f0"/><text x="50%" y="50%" font-size="13" font-family="sans-serif" font-weight="bold" fill="%23475569" dominant-baseline="middle" text-anchor="middle">Ảnh hiện trạng máy lạnh</text></svg>',
@@ -131,6 +326,32 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
       subtitle={`${job.brand} • ${job.horsePower} (${job.scheduledTime})`}
       maxWidth="lg"
     >
+      {/* Guard Error Banner if Active */}
+      {guardError && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-fadeIn">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-bold">Chặn chuyển trạng thái:</div>
+            <div>{guardError}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGuardError(null)}
+            className="text-rose-500 hover:text-rose-700 font-bold ml-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Approval Success Notification */}
+      {approvalNotice && (
+        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-800 animate-fadeIn font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{approvalNotice}</span>
+        </div>
+      )}
+
       {/* Status Progress Stepper */}
       <div className="mb-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
         <div className="flex items-center justify-between text-xs font-semibold mb-2">
@@ -243,13 +464,16 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('QUOTATION')}
-          className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all ${
+          className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'QUOTATION'
               ? 'border-[#0d9488] text-[#0d9488]'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Báo giá & Phụ tùng
+          <span>Báo giá & Phụ tùng</span>
+          {isAuthorizedForRepair && (
+            <span className="w-2 h-2 rounded-full bg-emerald-500" title="Đã có duyệt giá / waiver hợp lệ" />
+          )}
         </button>
         <button
           type="button"
@@ -273,7 +497,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               Chạm vào nút để cập nhật bước thực hiện tiếp theo:
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               {job.status === 'MOI' && (
                 <Button
                   variant="teal"
@@ -299,7 +523,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               )}
 
               {job.status === 'DANG_KIEM_TRA' && (
-                <>
+                <div className="space-y-2">
                   <Button
                     variant="teal"
                     size="lg"
@@ -309,64 +533,69 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                       setActiveTab('QUOTATION');
                     }}
                   >
-                    Lập bảng báo giá cho khách
+                    <FileText className="w-5 h-5 mr-1" />
+                    Lập bảng báo giá chi tiết (QUO-001)
                   </Button>
                   <Button
                     variant="outline"
-                    size="lg"
+                    size="md"
                     fullWidth
-                    onClick={() => handleStatusTransition('DANG_SUA')}
+                    onClick={() => {
+                      setActiveTab('QUOTATION');
+                      setShowWaiverForm(true);
+                    }}
                   >
-                    Không phát sinh &rarr; Bắt đầu làm ngay
+                    Không phát sinh linh kiện &rarr; Lập biên bản miễn trừ (Waiver)
                   </Button>
-                </>
+                </div>
               )}
 
               {job.status === 'BAO_GIA' && (
-                <div className="space-y-2">
-                  <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-1 text-left">
-                    <div className="font-bold text-teal-900 flex items-center justify-between">
-                      <span>Báo giá phiên bản Rev 1:</span>
-                      <span className="font-mono text-[11px] bg-teal-100 px-1.5 py-0.5 rounded text-teal-800">#REV-001</span>
+                <div className="space-y-2.5">
+                  {isAuthorizedForRepair ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+                      <div className="font-bold text-emerald-900 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Đã có phê duyệt hợp lệ (QUO-001):</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-800 font-bold">
+                          {latestRevision?.hash || 'XÁC NHẬN'}
+                        </span>
+                      </div>
+                      <div className="text-emerald-800 text-[11px]">
+                        Người duyệt: <strong>{latestRevision?.approverName || latestRevision?.waiverReason}</strong>
+                      </div>
+                      <Button
+                        variant="teal"
+                        size="lg"
+                        fullWidth
+                        onClick={() => handleStatusTransition('DANG_SUA')}
+                        className="mt-2"
+                      >
+                        <Unlock className="w-4 h-4 mr-1.5" />
+                        Bắt đầu thực hiện dịch vụ & sửa chữa
+                      </Button>
                     </div>
-                    <div className="text-slate-600 flex justify-between">
-                      <span>Tổng chi phí thỏa thuận:</span>
-                      <strong className="text-slate-900 font-bold">{formatVND(pricing.totalPayable)}</strong>
+                  ) : (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2">
+                      <div className="flex items-center gap-2 text-amber-900 font-bold">
+                        <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span>Chờ khách duyệt báo giá hoặc lập biên bản miễn trừ (QUO-001)</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Chính sách kỹ thuật ThợOS yêu cầu khách hàng xác nhận chi phí trước khi thợ thao tác sửa chữa.
+                      </p>
+                      <Button
+                        variant="teal"
+                        size="md"
+                        fullWidth
+                        onClick={() => setActiveTab('QUOTATION')}
+                      >
+                        Chuyển sang tab Báo giá để duyệt hoặc miễn trừ
+                      </Button>
                     </div>
-                    <p className="text-[11px] text-teal-800 pt-0.5">
-                      Xác nhận khách hàng đã nghiệm thu chi phí và đồng ý nội dung Báo giá Rev 1 trước khi bắt đầu làm.
-                    </p>
-                  </div>
-                  <Button
-                    variant="teal"
-                    size="lg"
-                    fullWidth
-                    onClick={() => {
-                      const updatedRevisions = [
-                        ...(job.quotationRevisions || []),
-                        {
-                          revisionNumber: (job.quotationRevisions?.length || 0) + 1,
-                          hash: `REV-00${(job.quotationRevisions?.length || 0) + 1}`,
-                          items: job.selectedServices.map((s) => ({ description: s.serviceId, price: s.price, quantity: s.quantity })),
-                          subtotal: pricing.subtotalServices + pricing.subtotalParts,
-                          discount: pricing.discountAmount,
-                          total: pricing.totalPayable,
-                          status: 'approved' as const,
-                          createdAt: new Date().toISOString(),
-                          approvedAt: new Date().toISOString(),
-                        },
-                      ];
-                      onUpdateJob({
-                        ...job,
-                        status: 'DANG_SUA',
-                        quotationRevisions: updatedRevisions,
-                      });
-                      setApprovalNotice('Đã xác nhận duyệt Báo giá Rev 1. Bắt đầu sửa chữa!');
-                      setTimeout(() => setApprovalNotice(null), 3500);
-                    }}
-                  >
-                    Xác nhận duyệt Báo giá Rev 1 &rarr; Tiến hành sửa chữa
-                  </Button>
+                  )}
                 </div>
               )}
 
@@ -480,7 +709,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
             </h5>
 
             {[
-              { key: 'drainPipeCleared', label: 'Đã thông thông máng xối và ống thoát nước thải' },
+              { key: 'drainPipeCleared', label: 'Đã thông máng xối và ống thoát nước thải' },
               { key: 'filterCleaned', label: 'Đã xịt rửa lưới lọc bụi và dàn lạnh bằng bơm áp lực' },
               { key: 'outdoorCoilCleaned', label: 'Dàn nóng sạch bụi, giải nhiệt thông thoáng' },
               { key: 'electricalTightened', label: 'Đã siết ốc đầu cốt điện, kiểm tra tụ khởi động' },
@@ -521,9 +750,42 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         </div>
       )}
 
-      {/* TAB 3: QUOTATION & SPARE PARTS */}
+      {/* TAB 3: QUOTATION & SPARE PARTS (QUO-001 Compliant) */}
       {activeTab === 'QUOTATION' && (
         <div className="space-y-4">
+          {/* QUO-001 Authorization Status Badge Banner */}
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between text-xs ${
+              isAuthorizedForRepair
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {isAuthorizedForRepair ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              ) : (
+                <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+              )}
+              <div>
+                <div className="font-bold">
+                  {isAuthorizedForRepair
+                    ? 'Báo giá đã được khách hàng phê duyệt (QUO-001 Đạt)'
+                    : 'Chưa có bằng chứng duyệt báo giá (Khóa bước sửa chữa)'}
+                </div>
+                <div className="text-[11px] opacity-90">
+                  {isAuthorizedForRepair
+                    ? `Mã xác thực: ${latestRevision?.hash} • Người duyệt: ${latestRevision?.approverName || 'Khách hàng'}`
+                    : 'Cần gửi báo giá cho khách duyệt hoặc xác nhận biên bản miễn trừ'}
+                </div>
+              </div>
+            </div>
+            {isAuthorizedForRepair && (
+              <Badge variant="success">Đủ điều kiện</Badge>
+            )}
+          </div>
+
+          {/* Add Spare Parts Section */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <h5 className="font-bold text-slate-900 text-sm mb-2">Thêm linh kiện / Vật tư phát sinh:</h5>
             <div className="flex gap-2">
@@ -589,7 +851,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
             )}
           </div>
 
-          {/* Discount and Summary */}
+          {/* Pricing Calculation Summary */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
             <div className="flex justify-between text-slate-600">
               <span>Công dịch vụ cơ sở:</span>
@@ -614,10 +876,192 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               />
             </div>
             <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
-              <span>Tổng thanh toán:</span>
+              <span>Tổng thanh toán báo giá:</span>
               <span className="text-base text-[#0d9488] font-black">{formatVND(pricing.totalPayable)}</span>
             </div>
           </div>
+
+          {/* QUO-001 Action Form 1: Generate & Send Revision Snapshot */}
+          <div className="p-4 bg-teal-50/60 rounded-2xl border border-teal-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-teal-700" />
+                <span>1. Lập Snapshot Báo giá Bất biến (#REV)</span>
+              </span>
+              <span className="text-[11px] font-mono text-teal-800 bg-teal-100 px-2 py-0.5 rounded font-bold">
+                Rev {(job.quotationRevisions?.length || 0) + 1}
+              </span>
+            </div>
+            <p className="text-[11px] text-teal-800 leading-snug">
+              Tạo phiên bản báo giá với băm nội dung xác thực (hash). Khách hàng sẽ xem và ký duyệt trước khi chuyển sang bước sửa chữa.
+            </p>
+            <Button
+              variant="teal"
+              size="md"
+              fullWidth
+              onClick={handleCreateAndSendRevision}
+            >
+              Lập Báo giá & Gửi khách duyệt (#REV-00{(job.quotationRevisions?.length || 0) + 1})
+            </Button>
+          </div>
+
+          {/* QUO-001 Action Form 2: Customer Approval Evidence Recording */}
+          {latestRevision && latestRevision.status === 'pending_homeowner' && (
+            <div className="p-4 bg-white rounded-2xl border-2 border-teal-500 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-teal-600" />
+                  <span>2. Ghi nhận Bằng chứng Khách hàng Duyệt giá</span>
+                </span>
+                <span className="text-[11px] font-mono bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-700">
+                  {latestRevision.hash}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Họ tên khách hàng / Người xác nhận duyệt chi phí:
+                </label>
+                <input
+                  type="text"
+                  value={approverName}
+                  onChange={(e) => setApproverName(e.target.value)}
+                  placeholder="VD: Nguyễn Văn An"
+                  className="w-full h-10 px-3 text-xs bg-slate-50 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
+                />
+              </div>
+
+              <label className="flex items-start gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customerApprovedCheck}
+                  onChange={(e) => setCustomerApprovedCheck(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded text-[#0d9488] focus:ring-[#0d9488]"
+                />
+                <span className="text-xs text-slate-800 leading-snug">
+                  Tôi xác nhận <strong>khách hàng đã xem chi tiết báo giá ({formatVND(latestRevision.total)})</strong> và đồng ý để thợ tiến hành dịch vụ.
+                </span>
+              </label>
+
+              <Button
+                variant="success"
+                size="md"
+                fullWidth
+                disabled={!customerApprovedCheck || !approverName.trim()}
+                onClick={() => handleConfirmCustomerApproval(latestRevision.revisionNumber)}
+              >
+                <Check className="w-4 h-4 mr-1.5" />
+                Lưu Bằng chứng Duyệt & Kích hoạt Quyền sửa chữa
+              </Button>
+            </div>
+          )}
+
+          {/* QUO-001 Action Form 3: Customer Quotation Waiver Option */}
+          <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-slate-500" />
+                <span>Hoặc: Biên bản Miễn trừ Báo giá (Quotation Waiver)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowWaiverForm(!showWaiverForm)}
+                className="text-xs text-teal-700 font-bold hover:underline"
+              >
+                {showWaiverForm ? 'Ẩn form waiver' : 'Lập waiver'}
+              </button>
+            </div>
+
+            {showWaiverForm && (
+              <div className="space-y-3 pt-2 border-t border-slate-200 animate-fadeIn">
+                <p className="text-[11px] text-slate-600">
+                  Áp dụng khi ca làm việc là bảo dưỡng tiêu chuẩn theo giá niêm yết cố định, dịch vụ trọn gói hoặc ca khẩn cấp đã được khách đồng ý miệng.
+                </p>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Lý do miễn trừ lập báo giá:
+                  </label>
+                  <input
+                    type="text"
+                    value={waiverReason}
+                    onChange={(e) => setWaiverReason(e.target.value)}
+                    placeholder="VD: Khách yêu cầu vệ sinh tiêu chuẩn theo bảng giá cố định"
+                    className="w-full h-10 px-3 text-xs bg-white rounded-xl border border-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
+                  />
+                </div>
+
+                <label className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={customerWaiverCheck}
+                    onChange={(e) => setCustomerWaiverCheck(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-[#0d9488] focus:ring-[#0d9488]"
+                  />
+                  <span className="text-xs text-slate-800 leading-snug">
+                    Khách hàng đã đồng ý miễn trừ bảng báo giá chi tiết và chỉ thanh toán theo đơn giá dịch vụ đã thỏa thuận.
+                  </span>
+                </label>
+
+                <Button
+                  variant="outline"
+                  size="md"
+                  fullWidth
+                  disabled={!customerWaiverCheck || !waiverReason.trim()}
+                  onClick={handleConfirmQuotationWaiver}
+                >
+                  Xác nhận Miễn trừ (Waiver Confirmed)
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Quotation History Audit Trail */}
+          {job.quotationRevisions && job.quotationRevisions.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                <History className="w-4 h-4 text-slate-500" />
+                <span>Lịch sử các phiên bản báo giá (#REV Audit Log):</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {job.quotationRevisions.map((rev) => (
+                  <div key={rev.revisionNumber} className="py-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900">Rev #{rev.revisionNumber}</span>
+                        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                          {rev.hash}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            rev.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : rev.status === 'waived'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {rev.status === 'approved'
+                            ? 'Đã duyệt'
+                            : rev.status === 'waived'
+                            ? 'Miễn trừ'
+                            : 'Chờ duyệt'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {rev.status === 'approved' && `Duyệt bởi: ${rev.approverName} lúc ${new Date(rev.approvedAt || rev.createdAt).toLocaleTimeString('vi-VN')}`}
+                        {rev.status === 'waived' && `Lý do: ${rev.waiverReason}`}
+                        {rev.status === 'pending_homeowner' && 'Đã gửi khách chờ phản hồi'}
+                      </div>
+                    </div>
+                    <div className="font-bold text-slate-900 text-right">
+                      {formatVND(rev.total)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
