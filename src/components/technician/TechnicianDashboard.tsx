@@ -147,29 +147,29 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
           variant="teal"
           size="md"
           onClick={onCreateJobRequest}
-          className="self-start sm:self-auto flex items-center gap-2 shadow-xs font-bold"
+          className="self-start sm:self-auto flex items-center gap-1.5 shadow-xs font-bold text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4 shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          <span>Thêm ca mới</span>
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>Đặt lịch hẹn</span>
         </Button>
       </div>
 
-      {/* 2. SPOTLIGHT HERO: CA ƯU TIÊN SỐ 1 XỬ LÝ NGAY */}
+      {/* 2. SPOTLIGHT HERO: CA ƯU TIÊN SỐ 1 XỬ LÝ NGAY (Optimized Height for 390x844 Viewport) */}
       {spotlightJob ? (
-        <div className="bg-[#0a1e3f] text-white rounded-2xl p-4 sm:p-6 shadow-lg border border-slate-800 relative overflow-hidden">
+        <div className="bg-[#0a1e3f] text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden">
           {/* Top Priority Header Bar */}
-          <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-white/10">
-            <div className="flex items-center gap-2.5">
-              <span className="relative flex h-2.5 w-2.5">
+          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
               </span>
               <span className="text-xs font-black text-teal-300 uppercase tracking-wider">
                 Ca ưu tiên xử lý ngay
               </span>
             </div>
             <span
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+              className={`px-2 py-0.5 rounded-md text-xs font-bold border ${
                 getStatusHumanLabel(spotlightJob.status).bg
               }`}
             >
@@ -177,57 +177,53 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
             </span>
           </div>
 
-          {/* Hero Content */}
-          <div className="py-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
-              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          {/* Hero Content (Compact 20-25% reduction) */}
+          <div className="py-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
                 {spotlightJob.customerName}
               </h2>
-              <div className="flex items-center gap-1.5 text-base sm:text-lg font-mono font-bold text-teal-300 bg-white/5 px-3 py-1 rounded-xl self-start sm:self-auto border border-white/10">
-                <Clock className="w-4 h-4 text-teal-400" />
+              <div className="flex items-center gap-1 text-xs sm:text-sm font-mono font-bold text-teal-300 bg-white/10 px-2.5 py-1 rounded-lg shrink-0 border border-white/10 whitespace-nowrap">
+                <Clock className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                 <span>{spotlightJob.scheduledTime}</span>
               </div>
             </div>
 
             {/* Address & Building Access */}
-            <div className="space-y-1.5">
-              <div className="flex items-start gap-2 text-sm sm:text-base text-slate-200">
-                <MapPin className="w-4 h-4 text-teal-400 shrink-0 mt-1" />
-                <span className="font-medium leading-relaxed">
-                  {spotlightJob.address}, {spotlightJob.district}
-                </span>
-              </div>
-              {spotlightJob.customerNotes && (
-                <div className="text-xs sm:text-sm text-amber-200 bg-amber-500/15 p-2.5 rounded-xl border border-amber-500/30 font-medium">
-                  Lưu ý gia chủ: {spotlightJob.customerNotes}
-                </div>
-              )}
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-200 truncate">
+              <MapPin className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+              <span className="font-medium truncate">
+                {spotlightJob.address}, {spotlightJob.district}
+              </span>
             </div>
 
+            {spotlightJob.customerNotes && (
+              <div className="text-xs text-amber-200 bg-amber-500/15 px-2.5 py-1.5 rounded-lg border border-amber-500/30 font-medium truncate">
+                Lưu ý: {spotlightJob.customerNotes}
+              </div>
+            )}
+
             {/* Equipment & Problem Callout */}
-            <div className="pt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-              <span className="font-bold text-white bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+            <div className="flex items-center gap-2 text-xs truncate pt-0.5">
+              <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md shrink-0">
                 {spotlightJob.brand} {spotlightJob.horsePower}
               </span>
-              <span className="text-slate-300 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                {spotlightJob.airconType === 'AM_TRAN' ? 'Âm trần Cassette' : 'Treo tường'}
-              </span>
               {spotlightJob.symptoms.length > 0 && (
-                <span className="text-rose-200 bg-rose-500/20 border border-rose-500/40 px-3 py-1.5 rounded-xl font-bold">
-                  Báo hỏng: {spotlightJob.symptoms.join(', ')}
+                <span className="text-rose-200 bg-rose-500/20 px-2 py-0.5 rounded-md font-semibold truncate border border-rose-500/30">
+                  {spotlightJob.symptoms.join(', ')}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Large Ergonomic Touch-Zone Action Buttons (Thumb-Zone >= 48px) */}
-          <div className="pt-4 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {/* Ergonomic Touch-Zone Action Buttons (Height 44px, Thumb-Zone >= 44-48px) */}
+          <div className="pt-2.5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-2">
             <a
               href={`tel:${spotlightJob.customerPhone.replace(/\s+/g, '')}`}
-              className="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap shrink-0"
             >
-              <Phone className="w-4 h-4" />
-              <span>Gọi điện khách</span>
+              <Phone className="w-3.5 h-3.5 shrink-0" />
+              <span>Gọi khách</span>
             </a>
 
             <a
@@ -236,9 +232,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-12 rounded-xl bg-white/10 hover:bg-white/15 active:bg-white/20 text-white font-bold text-sm flex items-center justify-center gap-2 border border-white/15 transition-all"
+              className="h-11 rounded-xl bg-white/10 hover:bg-white/15 active:bg-white/20 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-white/15 transition-all whitespace-nowrap shrink-0"
             >
-              <Navigation className="w-4 h-4 text-teal-400" />
+              <Navigation className="w-3.5 h-3.5 text-teal-400 shrink-0" />
               <span>Chỉ đường</span>
             </a>
 
@@ -251,9 +247,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                   onQuickAction(spotlightJob);
                 }
               }}
-              className="col-span-2 sm:col-span-1 h-12 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-md shadow-teal-500/20 transition-all"
+              className="col-span-2 sm:col-span-1 h-11 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/20 transition-all whitespace-nowrap"
             >
-              <Zap className="w-4 h-4 text-slate-950" />
+              <Zap className="w-4 h-4 text-slate-950 shrink-0" />
               <span>{getNextActionLabel(spotlightJob.status)}</span>
             </button>
           </div>

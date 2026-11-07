@@ -144,17 +144,17 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       {/* 1. PURPOSEFUL PAGE HEADING & QUICK ACTION TOOLBAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
               Danh bạ Khách hàng
             </h1>
-            <span className="text-xs font-semibold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-semibold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
               {tenantCustomers.length} liên hệ
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
             Hồ sơ khách hàng, sổ tay địa chỉ và quản lý máy lạnh gắn mã QR định danh theo từng căn hộ.
           </p>
         </div>
@@ -163,15 +163,15 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           variant="teal"
           size="md"
           onClick={() => setIsCreateModalOpen(true)}
-          className="self-start sm:self-auto flex items-center gap-2 shadow-xs font-bold text-sm h-10 px-4"
+          className="flex items-center gap-1.5 sm:gap-2 shadow-xs font-bold text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4 shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           <span>Thêm khách hàng</span>
         </Button>
       </div>
 
       {/* 1.1. REFINED EDITORIAL KPI STRIP (Hidden on mobile to eliminate clutter and prioritize list) */}
-      <div className="hidden sm:flex items-center justify-between px-5 py-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs divide-x divide-slate-100">
+      <div className="hidden sm:flex items-center justify-between px-5 py-3 bg-white rounded-xl border border-slate-200/80 shadow-xs divide-x divide-slate-100">
         <div className="flex-1 px-4 first:pl-0">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng khách hàng</div>
           <div className="flex items-baseline gap-2 mt-0.5">
@@ -204,7 +204,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       </div>
 
       {/* 2. SEARCH & SEGMENTED FILTER BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-0.5">
         {/* Segmented active / archived tabs */}
         <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/70 shrink-0 self-start sm:self-auto">
           <button
@@ -213,7 +213,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
               setFilterArchived(false);
               setSelectedCustomerId(null);
             }}
-            className={`px-3.5 py-1.5 text-xs rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
               !filterArchived
                 ? 'bg-white text-slate-900 font-bold shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
@@ -227,7 +227,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
               setFilterArchived(true);
               setSelectedCustomerId(null);
             }}
-            className={`px-3.5 py-1.5 text-xs rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
               filterArchived
                 ? 'bg-white text-slate-900 font-bold shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
@@ -245,7 +245,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
             placeholder="Tìm theo tên hoặc số điện thoại..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-900 placeholder-slate-400 transition-all shadow-xs"
+            className="w-full pl-10 pr-3.5 py-2 text-sm rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-900 placeholder-slate-400 transition-all shadow-xs"
           />
         </div>
       </div>
@@ -274,9 +274,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                       setIsMobileDetailOpen(true);
                     }
                   }}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer relative ${
+                  className={`p-3 sm:p-3.5 rounded-xl border transition-all cursor-pointer relative ${
                     isSelected
-                      ? 'border-teal-500 bg-teal-50/40 shadow-xs border-l-4 border-l-teal-600'
+                      ? 'border-teal-500/80 bg-teal-50/40 shadow-xs ring-1 ring-teal-500/20'
                       : 'border-slate-200/80 bg-white hover:bg-slate-50/80 hover:border-slate-300'
                   }`}
                 >
@@ -299,23 +299,23 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                           {cust.fullName}
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
-                          <span className="font-mono font-medium tracking-tight">{cust.phone}</span>
+                          <span className="font-mono font-medium tracking-tight whitespace-nowrap">{cust.phone}</span>
                           <span className="text-slate-300">·</span>
-                          <span className="text-teal-700 font-semibold">{devsCount} máy lạnh</span>
+                          <span className="text-teal-700 font-semibold whitespace-nowrap">{devsCount} máy lạnh</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Right side: 1-Tap Call & Detail indicator */}
+                    {/* Right side: 1-Tap Call (Target >= 44-48px) & Detail indicator */}
                     <div className="flex items-center gap-2 shrink-0">
                       <a
                         href={`tel:${cust.phone.replace(/\s+/g, '')}`}
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`Gọi điện cho ${cust.fullName}`}
-                        className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 flex items-center justify-center transition-colors border border-emerald-200/70 shadow-xs"
+                        className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 flex items-center justify-center transition-colors border border-emerald-200/70 shadow-xs shrink-0"
                         title="Gọi điện nhanh"
                       >
-                        <Phone className="w-4 h-4" />
+                        <Phone className="w-4 h-4 shrink-0" />
                       </a>
 
                       <ChevronRight
@@ -334,82 +334,91 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
         {/* RIGHT COLUMN: Desktop CRM Customer Dossier (lg:col-span-7) */}
         <div className="hidden lg:block lg:col-span-7">
           {selectedCustomer ? (
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6 space-y-6 sticky top-20">
-              {/* 3.1. Customer Dossier Header */}
-              <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center font-black text-xl shadow-xs">
-                    {selectedCustomer.fullName.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2.5">
-                      <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                        {selectedCustomer.fullName}
-                      </h2>
-                      <span
-                        className={`px-2.5 py-0.5 rounded text-xs font-bold ${
-                          selectedCustomer.isArchived
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {selectedCustomer.isArchived ? 'Đã lưu trữ' : 'Đang hoạt động'}
-                      </span>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 sm:p-6 space-y-5 sticky top-20">
+              {/* 3.1. Customer Dossier Header (Redesigned for 1024px, 1280px, 1440px) */}
+              <div className="pb-4 border-b border-slate-100 space-y-3.5">
+                {/* Top Row: Avatar, Name, Status & Action Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center font-black text-xl shadow-xs shrink-0">
+                      {selectedCustomer.fullName.charAt(0)}
                     </div>
-
-                    <div className="flex items-center gap-4 mt-1.5 text-xs sm:text-sm text-slate-600">
-                      <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-                        <Phone className="w-3.5 h-3.5 text-teal-600" />
-                        <span>{selectedCustomer.phone}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPhone(selectedCustomer.phone)}
-                          className="ml-1 text-slate-400 hover:text-slate-700 transition-colors"
-                          title="Sao chép số điện thoại"
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight truncate">
+                          {selectedCustomer.fullName}
+                        </h2>
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap shrink-0 ${
+                            selectedCustomer.isArchived
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
                         >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                        {copiedPhone && <span className="text-teal-600 font-sans text-xs">Đã chép!</span>}
+                          {selectedCustomer.isArchived ? 'Đã lưu trữ' : 'Đang hoạt động'}
+                        </span>
                       </div>
-
-                      {selectedCustomer.email && (
-                        <div className="flex items-center gap-1 text-slate-500">
-                          <Mail className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{selectedCustomer.email}</span>
-                        </div>
-                      )}
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        Mã hồ sơ: <span className="font-mono text-slate-600 font-medium">#{selectedCustomer.id}</span>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Actions Toolbar: Dedicated row with whitespace-nowrap, never wraps mid-word */}
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    <a
+                      href={`tel:${selectedCustomer.phone.replace(/\s+/g, '')}`}
+                      className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
+                      <span className="whitespace-nowrap">Gọi điện</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleArchive(selectedCustomer)}
+                      className="h-9 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 active:bg-slate-100 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                      title={selectedCustomer.isArchived ? 'Kích hoạt lại' : 'Lưu trữ hồ sơ'}
+                    >
+                      {selectedCustomer.isArchived ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                          <span className="whitespace-nowrap">Kích hoạt</span>
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="whitespace-nowrap">Lưu trữ</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* Quick actions in Dossier Header */}
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`tel:${selectedCustomer.phone.replace(/\s+/g, '')}`}
-                    className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Gọi điện</span>
-                  </a>
+                {/* Sub-row: Contact Pills (Phone in dedicated pill, never wraps mid-digits) */}
+                <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                  {/* Phone Pill */}
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono font-bold whitespace-nowrap shrink-0">
+                    <Phone className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="whitespace-nowrap tracking-tight">{selectedCustomer.phone}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPhone(selectedCustomer.phone)}
+                      className="ml-1 p-0.5 text-slate-400 hover:text-slate-700 active:text-teal-700 transition-colors"
+                      title="Sao chép số điện thoại"
+                    >
+                      <Copy className="w-3.5 h-3.5 shrink-0" />
+                    </button>
+                    {copiedPhone && <span className="text-teal-600 font-sans text-[11px] font-bold ml-1">Đã chép!</span>}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleToggleArchive(selectedCustomer)}
-                    className="h-9 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                    title={selectedCustomer.isArchived ? 'Kích hoạt lại' : 'Lưu trữ hồ sơ'}
-                  >
-                    {selectedCustomer.isArchived ? (
-                      <>
-                        <RotateCcw className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Kích hoạt</span>
-                      </>
-                    ) : (
-                      <>
-                        <Archive className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Lưu trữ</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Email Pill */}
+                  {selectedCustomer.email && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 whitespace-nowrap shrink-0">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="whitespace-nowrap">{selectedCustomer.email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
