@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Users,
   Search,
@@ -60,6 +61,28 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newNotes, setNewNotes] = useState('');
+
+  // ESC key and body scroll lock for modals & bottom sheets
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isCreateModalOpen) setIsCreateModalOpen(false);
+        if (isMobileDetailOpen) setIsMobileDetailOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    if (isCreateModalOpen || isMobileDetailOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isCreateModalOpen, isMobileDetailOpen]);
 
   // Reset when org switches
   useEffect(() => {
@@ -145,29 +168,26 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
     <div className="space-y-4 max-w-7xl mx-auto">
       {/* 1. PURPOSEFUL PAGE HEADING & QUICK ACTION TOOLBAR */}
       <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
-              Danh bạ Khách hàng
-            </h1>
-            <span className="text-xs font-semibold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
-              {tenantCustomers.length} liên hệ
-            </span>
-          </div>
-          <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
-            Hồ sơ khách hàng, sổ tay địa chỉ và quản lý máy lạnh gắn mã QR định danh theo từng căn hộ.
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+            Danh bạ Khách hàng
+          </h1>
+          <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
+            Hồ sơ khách hàng, sổ tay địa chỉ và quản lý máy lạnh gắn mã QR ({tenantCustomers.length} liên hệ).
           </p>
         </div>
 
-        <Button
-          variant="teal"
-          size="md"
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.96 }}
+          transition={{ duration: 0.12 }}
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-1.5 sm:gap-2 shadow-xs font-bold text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4 shrink-0 whitespace-nowrap"
+          className="flex items-center justify-center gap-1.5 shadow-xs font-bold text-xs sm:text-sm h-10 px-3.5 sm:px-4 rounded-xl bg-[#0d9488] hover:bg-teal-700 active:bg-teal-800 text-white shrink-0 whitespace-nowrap min-w-[44px] min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 shrink-0" />
-          <span>Thêm khách hàng</span>
-        </Button>
+          <span className="hidden sm:inline">Thêm khách hàng</span>
+          <span className="sm:hidden font-bold">Thêm</span>
+        </motion.button>
       </div>
 
       {/* 1.1. REFINED EDITORIAL KPI STRIP (Hidden on mobile to eliminate clutter and prioritize list) */}
@@ -265,8 +285,10 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
               const devsCount = tenantDevices.filter((d) => d.customerId === cust.id).length;
 
               return (
-                <div
+                <motion.div
                   key={cust.id}
+                  whileTap={{ scale: 0.99 }}
+                  transition={{ duration: 0.12 }}
                   onClick={() => {
                     setSelectedCustomerId(cust.id);
                     // On mobile, open rich bottom sheet drawer
@@ -274,7 +296,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                       setIsMobileDetailOpen(true);
                     }
                   }}
-                  className={`p-3 sm:p-3.5 rounded-xl border transition-all cursor-pointer relative ${
+                  className={`p-3 sm:p-3.5 rounded-xl border transition-colors cursor-pointer relative ${
                     isSelected
                       ? 'border-teal-500/80 bg-teal-50/40 shadow-xs ring-1 ring-teal-500/20'
                       : 'border-slate-200/80 bg-white hover:bg-slate-50/80 hover:border-slate-300'
@@ -325,7 +347,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })
           )}
@@ -333,8 +355,16 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
         {/* RIGHT COLUMN: Desktop CRM Customer Dossier (lg:col-span-7) */}
         <div className="hidden lg:block lg:col-span-7">
-          {selectedCustomer ? (
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 sm:p-6 space-y-5 sticky top-20">
+          <AnimatePresence mode="wait">
+            {selectedCustomer ? (
+              <motion.div
+                key={selectedCustomer.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 sm:p-6 space-y-5 sticky top-20"
+              >
               {/* 3.1. Customer Dossier Header (Redesigned for 1024px, 1280px, 1440px) */}
               <div className="pb-4 border-b border-slate-100 space-y-3.5">
                 {/* Top Row: Avatar, Name, Status & Action Toolbar */}
@@ -518,193 +548,234 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   <p className="leading-relaxed text-slate-600">{selectedCustomer.notes}</p>
                 </div>
               )}
-            </div>
+            </motion.div>
           ) : (
             <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-sm">
               Chọn một khách hàng ở danh sách bên trái để xem hồ sơ chi tiết CRM.
             </div>
           )}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* 4. MOBILE DETAIL BOTTOM SHEET / FULL-SCREEN DRAWER (Ergonomic for 360px - 430px) */}
-      {isMobileDetailOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto p-5 space-y-5 animate-slideUp border-t border-slate-200 shadow-2xl">
-            {/* Sheet Handle & Close Bar */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center font-bold text-base">
-                  {selectedCustomer.fullName.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 leading-tight">{selectedCustomer.fullName}</h3>
-                  <div className="text-xs font-mono font-semibold text-slate-500 mt-0.5">{selectedCustomer.phone}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsMobileDetailOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-sm transition-colors"
-                aria-label="Đóng chi tiết"
-              >
-                ✕
-              </button>
-            </div>
+      <AnimatePresence>
+        {isMobileDetailOpen && selectedCustomer && (
+          <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              onClick={() => setIsMobileDetailOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
 
-            {/* Direct Call Bar on Mobile (Thumb zone >= 48px) */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <a
-                href={`tel:${selectedCustomer.phone.replace(/\s+/g, '')}`}
-                className="h-12 rounded-xl bg-emerald-600 active:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
-              >
-                <Phone className="w-4 h-4" />
-                <span>Gọi điện</span>
-              </a>
-              <button
-                type="button"
-                onClick={() => handleCopyPhone(selectedCustomer.phone)}
-                className="h-12 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 bg-slate-50 active:bg-slate-100"
-              >
-                <Copy className="w-4 h-4 text-slate-500" />
-                <span>{copiedPhone ? 'Đã sao chép!' : 'Chép số'}</span>
-              </button>
-            </div>
-
-            {/* Properties */}
-            <div className="space-y-2.5">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Địa điểm căn hộ ({customerProperties.length})
-              </h4>
-              {customerProperties.map((p) => (
-                <div key={p.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
-                  <div className="font-bold text-slate-900 text-sm">{p.label}</div>
-                  <div className="text-slate-600 text-xs">{p.address}, {p.district}</div>
-                  {p.accessNotes && (
-                    <div className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg font-medium border border-amber-200/60">
-                      Lưu ý: {p.accessNotes}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Devices */}
-            <div className="space-y-2.5">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Thiết bị máy lạnh ({customerDevices.length})
-              </h4>
-              {customerDevices.map((d) => (
-                <div key={d.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-900 text-sm">{d.brand} {d.horsePower}</span>
-                    <span className="font-mono text-teal-800 font-semibold bg-teal-50 px-2 py-0.5 rounded border border-teal-200/50">
-                      {d.neutralQrCode}
-                    </span>
+            {/* Sheet Container */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 380 }}
+              className="relative z-10 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto p-5 space-y-5 border-t border-slate-200 shadow-2xl"
+            >
+              {/* Sheet Handle & Close Bar */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1e3f] text-[#14b8a6] flex items-center justify-center font-bold text-base">
+                    {selectedCustomer.fullName.charAt(0)}
                   </div>
-                  <div className="text-slate-600 text-xs">Vị trí: {d.indoorUnitLocation}</div>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 leading-tight">{selectedCustomer.fullName}</h3>
+                    <div className="text-xs font-mono font-semibold text-slate-500 mt-0.5">{selectedCustomer.phone}</div>
+                  </div>
                 </div>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDetailOpen(false)}
+                  className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300 flex items-center justify-center font-bold text-base transition-colors"
+                  aria-label="Đóng chi tiết"
+                >
+                  ✕
+                </button>
+              </div>
 
-            {/* Close */}
-            <Button variant="ghost" size="md" fullWidth onClick={() => setIsMobileDetailOpen(false)} className="h-11 font-semibold text-sm">
-              Đóng hồ sơ
-            </Button>
+              {/* Direct Call Bar on Mobile (Thumb zone >= 48px) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <motion.a
+                  whileTap={{ scale: 0.97 }}
+                  href={`tel:${selectedCustomer.phone.replace(/\s+/g, '')}`}
+                  className="h-12 rounded-xl bg-emerald-600 active:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Gọi điện</span>
+                </motion.a>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={() => handleCopyPhone(selectedCustomer.phone)}
+                  className="h-12 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 bg-slate-50 active:bg-slate-100"
+                >
+                  <Copy className="w-4 h-4 text-slate-500" />
+                  <span>{copiedPhone ? 'Đã sao chép!' : 'Chép số'}</span>
+                </motion.button>
+              </div>
+
+              {/* Properties */}
+              <div className="space-y-2.5">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Địa điểm căn hộ ({customerProperties.length})
+                </h4>
+                {customerProperties.map((p) => (
+                  <div key={p.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                    <div className="font-bold text-slate-900 text-sm">{p.label}</div>
+                    <div className="text-slate-600 text-xs">{p.address}, {p.district}</div>
+                    {p.accessNotes && (
+                      <div className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg font-medium border border-amber-200/60">
+                        Lưu ý: {p.accessNotes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Devices */}
+              <div className="space-y-2.5">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Thiết bị máy lạnh ({customerDevices.length})
+                </h4>
+                {customerDevices.map((d) => (
+                  <div key={d.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-900 text-sm">{d.brand} {d.horsePower}</span>
+                      <span className="font-mono text-teal-800 font-semibold bg-teal-50 px-2 py-0.5 rounded border border-teal-200/50">
+                        {d.neutralQrCode}
+                      </span>
+                    </div>
+                    <div className="text-slate-600 text-xs">Vị trí: {d.indoorUnitLocation}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Close */}
+              <Button variant="ghost" size="md" fullWidth onClick={() => setIsMobileDetailOpen(false)} className="h-11 font-semibold text-sm">
+                Đóng hồ sơ
+              </Button>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* 5. CREATE CUSTOMER MODAL */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp">
-            <div className="bg-[#0a1e3f] p-5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#0d9488] flex items-center justify-center text-white font-bold">
-                  <Users className="w-5 h-5" />
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              onClick={() => setIsCreateModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+
+            {/* Modal Dialog */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+              className="relative z-10 bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="bg-[#0a1e3f] p-5 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#0d9488] flex items-center justify-center text-white font-bold">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base">Thêm Khách hàng Mới</h3>
+                    <p className="text-xs text-slate-300">Tổ chức: {currentOrg.name}</p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCustomer} className="p-5 space-y-4">
                 <div>
-                  <h3 className="font-black text-base">Thêm Khách hàng Mới</h3>
-                  <p className="text-xs text-slate-300">Tổ chức: {currentOrg.name}</p>
+                  <label className="text-xs font-bold text-slate-800 block mb-1">
+                    Họ và tên khách hàng *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Chị Mai Lan"
+                    value={newFullName}
+                    onChange={(e) => setNewFullName(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-teal-600 transition-colors"
+                  />
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleCreateCustomer} className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-800 block mb-1">
-                  Họ và tên khách hàng *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: Chị Mai Lan"
-                  value={newFullName}
-                  onChange={(e) => setNewFullName(e.target.value)}
-                  className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-teal-600"
-                />
-              </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-1">
+                    Số điện thoại *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ví dụ: 0908 123 456"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm font-mono font-semibold text-slate-900 focus:outline-none focus:border-teal-600 transition-colors"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-800 block mb-1">
-                  Số điện thoại *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="Ví dụ: 0908 123 456"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm font-mono font-semibold text-slate-900 focus:outline-none focus:border-teal-600"
-                />
-              </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-1">
+                    Email (tùy chọn)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="mailan.ng@gmail.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:border-teal-600 transition-colors"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-800 block mb-1">
-                  Email (tùy chọn)
-                </label>
-                <input
-                  type="email"
-                  placeholder="mailan.ng@gmail.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:border-teal-600"
-                />
-              </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-1">
+                    Ghi chú điều phối (tùy chọn)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ví dụ: Nhà có trẻ sơ sinh, ưu tiên làm buổi sáng"
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-teal-600 transition-colors"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-800 block mb-1">
-                  Ghi chú điều phối (tùy chọn)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ví dụ: Nhà có trẻ sơ sinh, ưu tiên làm buổi sáng"
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-teal-600"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button variant="ghost" size="md" fullWidth onClick={() => setIsCreateModalOpen(false)}>
-                  Hủy
-                </Button>
-                <Button variant="teal" size="md" fullWidth type="submit">
-                  Lưu khách hàng
-                </Button>
-              </div>
-            </form>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="ghost" size="md" fullWidth onClick={() => setIsCreateModalOpen(false)}>
+                    Hủy
+                  </Button>
+                  <Button variant="teal" size="md" fullWidth type="submit">
+                    Lưu khách hàng
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };
