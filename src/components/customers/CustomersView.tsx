@@ -143,19 +143,19 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      {/* 1. PURPOSEFUL PAGE HEADING & ACTION TOOLBAR */}
+      {/* 1. PURPOSEFUL PAGE HEADING & QUICK ACTION TOOLBAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-slate-200/60">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Danh bạ Khách hàng
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold font-mono">
-              {tenantCustomers.length}
+            <span className="text-xs font-semibold text-slate-400 font-mono">
+              / {tenantCustomers.length} liên hệ
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Hồ sơ khách hàng, sổ tay địa chỉ và quản lý máy lạnh gắn mã QR định danh.
+            Hồ sơ khách hàng, sổ tay địa chỉ và quản lý máy lạnh gắn mã QR định danh theo từng căn hộ.
           </p>
         </div>
 
@@ -168,6 +168,33 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           <Plus className="w-4 h-4" />
           <span>Thêm khách hàng</span>
         </Button>
+      </div>
+
+      {/* 1.1. QUICK CRM METRICS BAR (Total Customers, Total Equipment, Active Addresses) */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tổng khách hàng</div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5 tabular-nums">
+            {tenantCustomers.length}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Hồ sơ CRM cơ sở</div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3 shadow-xs">
+          <div className="text-[11px] font-semibold text-teal-800 uppercase tracking-wider">Thiết bị quản lý</div>
+          <div className="text-xl sm:text-2xl font-black text-teal-700 font-mono mt-0.5 tabular-nums">
+            {tenantDevices.length}
+          </div>
+          <div className="text-[10px] text-teal-700/80 mt-0.5">Đã gắn mã QR</div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Căn hộ & Điểm lắp</div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5 tabular-nums">
+            {tenantProperties.length}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Sổ tay địa chỉ</div>
+        </div>
       </div>
 
       {/* 2. SEARCH & SEGMENTED FILTER BAR */}
