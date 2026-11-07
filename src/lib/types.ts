@@ -188,13 +188,19 @@ export interface UserMembership {
 }
 
 // Quotation revision per QUO-001 (Immutable snapshot, deterministic hash, customer evidence)
+export type QuotationConfirmationMethod = 'homeowner_portal_signature' | 'technician_verbal_report';
+
 export interface QuotationApprovalEvidence {
-  approvedByCustomer: boolean;
+  approvedByCustomer: boolean; // Must be true only when confirmed by homeowner
+  confirmationMethod: QuotationConfirmationMethod;
   approverName: string;
+  approverPhone?: string;
   approvedAt: string; // ISO 8601
   approvedRevisionNumber: number;
   hash: string;
+  snapshotTotal: number;
   notes?: string;
+  isSimulatedVerification: boolean; // Transparent disclosure: frontend prototype simulation
 }
 
 export interface QuotationWaiverEvidence {
@@ -203,6 +209,7 @@ export interface QuotationWaiverEvidence {
   customerAcknowledged: boolean;
   waivedAt: string; // ISO 8601
   waivedBy: string; // Staff user name
+  isSimulatedVerification: boolean; // Transparent disclosure: frontend prototype simulation
 }
 
 export interface QuotationRevision {
@@ -219,6 +226,7 @@ export interface QuotationRevision {
   approvedAt?: string;
   approverName?: string;
   approvedByCustomer?: boolean;
+  technicianReportedApproval?: boolean; // When tech notes verbal agreement without customer portal verification
   approvalEvidence?: QuotationApprovalEvidence;
   waiverEvidence?: QuotationWaiverEvidence;
 }

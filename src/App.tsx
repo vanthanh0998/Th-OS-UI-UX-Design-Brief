@@ -57,6 +57,7 @@ import {
   validateJobTransition,
   canPerformWriteOperation,
   getVisibleJobsForUser,
+  mutateJobState,
 } from './lib/status-machine';
 import { calculateJobTotal } from './lib/pricing';
 import {
@@ -154,29 +155,25 @@ export default function App() {
     }
   }, [jobs]);
 
-  // Handlers for Jobs with P0/P1 business policy guards
-  const handleUpdateJob = (updatedJob: Job) => {
-    // 1. Subscription write protection (P1)
-    const writeCheck = canPerformWriteOperation(currentOrg);
-    if (!writeCheck.allowed) {
-      alert(writeCheck.error);
-      return;
+  // Handlers for Jobs with P0/P1 business policy guards (Central Mutation Guard P0-03)
+  const handleUpdateJob = (updatedJob: Job): { success: boolean; error?: string } => {
+    const existing = jobs.find((j) => j.id === updatedJob.id);
+    if (!existing) {
+      alert('Không tìm thấy ca làm việc cần cập nhật.');
+      return { success: false, error: 'Không tìm thấy ca làm việc.' };
     }
 
-    // 2. Technician scoping guard: Technicians cannot operate on jobs assigned to others (P1)
-    if (
-      currentUser.role === 'technician' &&
-      updatedJob.assignedTechnicianId &&
-      updatedJob.assignedTechnicianId !== currentUser.id
-    ) {
-      alert(`Từ chối thao tác: Ca #${updatedJob.id} không được phân công cho bạn.`);
-      return;
+    const res = mutateJobState(existing, updatedJob, { currentUser, currentOrg });
+    if (!res.success || !res.job) {
+      alert(res.error || 'Cập nhật ca làm việc bị từ chối theo chính sách nghiệp vụ.');
+      return { success: false, error: res.error };
     }
 
-    setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
-    if (selectedJob && selectedJob.id === updatedJob.id) {
-      setSelectedJob(updatedJob);
+    setJobs((prev) => prev.map((j) => (j.id === res.job!.id ? res.job! : j)));
+    if (selectedJob && selectedJob.id === res.job.id) {
+      setSelectedJob(res.job);
     }
+    return { success: true };
   };
 
   // Quick status step advancement with Unified Transition Guard (P0-02, P0-01, P1)
@@ -184,30 +181,21 @@ export default function App() {
     const next = getNextStatus(job.status);
     if (!next) return;
 
-    // Unified Business Transition Guard
-    const validation = validateJobTransition({
-      job,
-      targetStatus: next,
-      currentUser,
-      currentOrg,
-    });
-
-    if (!validation.allowed) {
-      if (validation.code === 'QUO_001_REQUIRED') {
+    const res = mutateJobState(job, { status: next }, { currentUser, currentOrg });
+    if (!res.success || !res.job) {
+      if (res.code === 'QUO_001_REQUIRED') {
         setSelectedJob(job);
         setIsDetailModalOpen(true);
         return;
       }
-      alert(validation.error || 'Thao tác chuyển trạng thái không hợp lệ theo quy định nghiệp vụ.');
+      alert(res.error || 'Thao tác chuyển trạng thái không hợp lệ theo quy định nghiệp vụ.');
       return;
     }
 
-    const updated: Job = {
-      ...job,
-      status: next,
-      completedAt: next === 'HOAN_THANH' ? new Date().toISOString() : job.completedAt,
-    };
-    handleUpdateJob(updated);
+    setJobs((prev) => prev.map((j) => (j.id === res.job!.id ? res.job! : j)));
+    if (selectedJob && selectedJob.id === res.job!.id) {
+      setSelectedJob(res.job!);
+    }
   };
 
   // Dynamic Payment Ledger Confirmation (P0-02 & P0-03 & P1)

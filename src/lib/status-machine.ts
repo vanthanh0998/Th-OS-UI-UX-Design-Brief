@@ -141,33 +141,37 @@ export function computeQuotationHash(
   return `REV${revisionNumber}-${fullHash.substring(0, 8).toUpperCase()}`;
 }
 
-// Verification of QUO-001 authorization before moving to DANG_SUA
+// Verification of QUO-001 authorization before moving to DANG_SUA (P0-02: Strictly evaluates LATEST revision only)
 export function hasValidQuotationAuthorization(job: Job): boolean {
   if (!job.quotationRevisions || job.quotationRevisions.length === 0) {
     return false;
   }
 
-  const hasApproved = job.quotationRevisions.some((rev) => {
-    return (
-      rev.status === 'approved' &&
-      rev.approvedByCustomer === true &&
-      Boolean(rev.approverName && rev.approverName.trim()) &&
-      Boolean(rev.approvedAt && rev.approvedAt.trim()) &&
-      Boolean(rev.hash && rev.hash.trim())
-    );
-  });
+  // P0-02: ONLY consider the latest active revision
+  const latestRev = job.quotationRevisions[job.quotationRevisions.length - 1];
+  if (!latestRev) return false;
 
-  if (hasApproved) return true;
+  if (latestRev.status === 'approved') {
+    const isEvidenceValid =
+      latestRev.approvedByCustomer === true &&
+      Boolean(latestRev.approverName && latestRev.approverName.trim()) &&
+      Boolean(latestRev.approvedAt && latestRev.approvedAt.trim()) &&
+      Boolean(latestRev.hash && latestRev.hash.trim()) &&
+      (!latestRev.approvalEvidence ||
+        (latestRev.approvalEvidence.approvedRevisionNumber === latestRev.revisionNumber &&
+          latestRev.approvalEvidence.hash === latestRev.hash));
+    return isEvidenceValid;
+  }
 
-  const hasWaived = job.quotationRevisions.some((rev) => {
-    return (
-      rev.status === 'waived' &&
-      rev.customerAcknowledged === true &&
-      Boolean(rev.waiverReason && rev.waiverReason.trim().length >= 3)
-    );
-  });
+  if (latestRev.status === 'waived') {
+    const isWaiverValid =
+      latestRev.customerAcknowledged === true &&
+      Boolean(latestRev.waiverReason && latestRev.waiverReason.trim().length >= 3);
+    return isWaiverValid;
+  }
 
-  return hasWaived;
+  // Any other status (pending_homeowner, draft, rejected) CANNOT authorize repair
+  return false;
 }
 
 // P1 Subscription Policy Guard: Write blocks on read_only & suspended tenants
@@ -187,11 +191,11 @@ export function canPerformWriteOperation(org: Organization): { allowed: boolean;
   return { allowed: true };
 }
 
-// P1 Technician Job Scoping: Technicians only see jobs assigned to them
+// P1 Technician Job Scoping: Technicians only see jobs assigned to them (unassigned jobs are hidden from technician)
 export function getVisibleJobsForUser(jobs: Job[], user: StaffUser, orgId: string): Job[] {
   const tenantJobs = jobs.filter((j) => j.organizationId === orgId);
   if (user.role === 'technician') {
-    return tenantJobs.filter((j) => j.assignedTechnicianId === user.id);
+    return tenantJobs.filter((j) => Boolean(j.assignedTechnicianId && j.assignedTechnicianId === user.id));
   }
   return tenantJobs;
 }
@@ -238,13 +242,17 @@ export function validateJobTransition(context: TransitionGuardContext): Transiti
     };
   }
 
-  // 3. Technician assignment boundary (P1)
+  // 3. Technician assignment boundary (P1: Reject jobs assigned to others AND unassigned jobs)
   if (currentUser.role === 'technician') {
-    if (job.assignedTechnicianId && job.assignedTechnicianId !== currentUser.id) {
+    if (!job.assignedTechnicianId || job.assignedTechnicianId !== currentUser.id) {
       return {
         allowed: false,
         code: 'NOT_ASSIGNED',
-        error: `Từ chối thao tác: Ca #${job.id} không được phân công cho kỹ thuật viên ${currentUser.fullName}.`,
+        error: `Từ chối thao tác: Ca #${job.id} ${
+          !job.assignedTechnicianId
+            ? 'chưa được phân công cho kỹ thuật viên nào (chờ điều phối viên gán thợ).'
+            : `không được phân công cho kỹ thuật viên ${currentUser.fullName}.`
+        }`,
       };
     }
   }
@@ -258,7 +266,7 @@ export function validateJobTransition(context: TransitionGuardContext): Transiti
     };
   }
 
-  // 5. QUO-001 Invariant: Starting repair ('DANG_SUA') strictly requires approved quotation or customer waiver
+  // 5. QUO-001 Invariant: Starting repair ('DANG_SUA') strictly requires approved quotation or customer waiver on LATEST revision
   if (targetStatus === 'DANG_SUA') {
     const hasAuth = hasValidQuotationAuthorization(job);
     if (!hasAuth) {
@@ -266,10 +274,103 @@ export function validateJobTransition(context: TransitionGuardContext): Transiti
         allowed: false,
         code: 'QUO_001_REQUIRED',
         error:
-          'QUO-001: Không thể bắt đầu sửa chữa nếu chưa có Báo giá được khách hàng duyệt (#REV-xxx) hoặc Biên bản miễn trừ (Waiver) có xác nhận của khách.',
+          'QUO-001: Không thể bắt đầu sửa chữa nếu chưa có Báo giá được khách hàng duyệt (#REV-xxx) hoặc Biên bản miễn trừ (Waiver) có xác nhận của khách trên phiên bản hiện hành.',
       };
     }
   }
 
   return { allowed: true };
+}
+
+export interface JobMutationContext {
+  currentUser: StaffUser;
+  currentOrg: Organization;
+}
+
+export interface JobMutationResult {
+  success: boolean;
+  job?: Job;
+  error?: string;
+  code?: string;
+}
+
+// Central Job Mutation Service (P0-03: Single point of mutation protecting against bypasses)
+export function mutateJobState(
+  currentJob: Job,
+  updates: Partial<Job>,
+  context: JobMutationContext
+): JobMutationResult {
+  const { currentUser, currentOrg } = context;
+
+  // 1. Subscription write protection (P1)
+  const writeCheck = canPerformWriteOperation(currentOrg);
+  if (!writeCheck.allowed) {
+    return { success: false, code: 'SUBSCRIPTION_LOCKED', error: writeCheck.error };
+  }
+
+  // 2. Multi-tenant isolation
+  if (currentJob.organizationId !== currentOrg.id || currentJob.organizationId !== currentUser.organizationId) {
+    return { success: false, code: 'TENANT_MISMATCH', error: 'Từ chối thao tác: Ca làm việc không thuộc tổ chức hiện tại.' };
+  }
+  if (updates.organizationId && updates.organizationId !== currentOrg.id) {
+    return { success: false, code: 'TENANT_MISMATCH', error: 'Không thể thay đổi tổ chức của ca làm việc.' };
+  }
+
+  // 3. Technician assignment boundary (P1: Reject jobs assigned to others AND unassigned jobs)
+  if (currentUser.role === 'technician') {
+    if (!currentJob.assignedTechnicianId || currentJob.assignedTechnicianId !== currentUser.id) {
+      return {
+        success: false,
+        code: 'NOT_ASSIGNED',
+        error: `Từ chối thao tác: Ca #${currentJob.id} ${
+          !currentJob.assignedTechnicianId
+            ? 'chưa được phân công cho kỹ thuật viên nào (chờ điều phối viên gán thợ).'
+            : `không được phân công cho kỹ thuật viên ${currentUser.fullName}.`
+        }`,
+      };
+    }
+    if (updates.assignedTechnicianId && updates.assignedTechnicianId !== currentUser.id) {
+      return {
+        success: false,
+        code: 'ROLE_UNAUTHORIZED',
+        error: 'Kỹ thuật viên không có quyền điều phối lại ca cho nhân viên khác.',
+      };
+    }
+  }
+
+  // 4. Status Transition Guard: if status is changing, must pass validateJobTransition
+  if (updates.status && updates.status !== currentJob.status) {
+    const candidateJob: Job = {
+      ...currentJob,
+      ...updates,
+      status: currentJob.status, // evaluate transition from current status
+    };
+    const transitionCheck = validateJobTransition({
+      job: candidateJob,
+      targetStatus: updates.status,
+      currentUser,
+      currentOrg,
+    });
+    if (!transitionCheck.allowed) {
+      return {
+        success: false,
+        code: transitionCheck.code,
+        error: transitionCheck.error,
+      };
+    }
+  }
+
+  // 5. Construct safely merged and protected job record
+  const nextStatus = updates.status || currentJob.status;
+  const mergedJob: Job = {
+    ...currentJob,
+    ...updates,
+    id: currentJob.id, // immutable ID
+    organizationId: currentJob.organizationId, // immutable tenant
+    status: nextStatus,
+    completedAt:
+      nextStatus === 'HOAN_THANH' ? updates.completedAt || new Date().toISOString() : currentJob.completedAt,
+  };
+
+  return { success: true, job: mergedJob };
 }

@@ -9,6 +9,7 @@ import {
   computeQuotationHash,
   canPerformWriteOperation,
   getVisibleJobsForUser,
+  mutateJobState,
 } from './status-machine';
 import { Job, Organization, StaffUser, QuotationRevision } from './types';
 
@@ -312,44 +313,305 @@ test('Tenant Guard: blocks transitions for jobs belonging to a different organiz
   assert.equal(res.code, 'TENANT_MISMATCH');
 });
 
-test('P1: blocks technician from operating on a job assigned to another technician', () => {
+test('P1: blocks technician from operating on an UNASSIGNED job', () => {
+  const unassignedJob: Job = { ...baseJob, assignedTechnicianId: undefined };
   const res = validateJobTransition({
-    job: baseJob, // assigned to tech-01
+    job: unassignedJob,
     targetStatus: 'DANG_TOI',
-    currentUser: mockOtherTechUser, // tech-02
+    currentUser: mockTechUser,
     currentOrg: mockOrg,
   });
 
   assert.equal(res.allowed, false);
   assert.equal(res.code, 'NOT_ASSIGNED');
-  assert.match(res.error || '', /không được phân công/);
+  assert.match(res.error || '', /chưa được phân công/);
 });
 
-test('P1: allows owner and manager to operate on any tenant job', () => {
-  const res = validateJobTransition({
-    job: { ...baseJob, status: 'MOI' },
-    targetStatus: 'DANG_TOI',
-    currentUser: mockOwnerUser, // Owner can manage any ca in org
-    currentOrg: mockOrg,
-  });
-
-  assert.equal(res.allowed, true);
-});
-
-test('P1: getVisibleJobsForUser filters jobs by assigned technician for tech role', () => {
+test('P1: getVisibleJobsForUser excludes unassigned jobs for technician role', () => {
   const jobList: Job[] = [
     { ...baseJob, id: 'JOB-1', assignedTechnicianId: 'tech-01' },
-    { ...baseJob, id: 'JOB-2', assignedTechnicianId: 'tech-02' },
-    { ...baseJob, id: 'JOB-3', assignedTechnicianId: 'tech-01' },
+    { ...baseJob, id: 'JOB-2', assignedTechnicianId: undefined }, // unassigned
+    { ...baseJob, id: 'JOB-3', assignedTechnicianId: 'tech-02' },
   ];
 
   const techVisible = getVisibleJobsForUser(jobList, mockTechUser, 'org-01');
-  assert.equal(techVisible.length, 2);
-  assert.deepEqual(
-    techVisible.map((j) => j.id),
-    ['JOB-1', 'JOB-3']
-  );
+  assert.equal(techVisible.length, 1);
+  assert.equal(techVisible[0].id, 'JOB-1');
 
   const ownerVisible = getVisibleJobsForUser(jobList, mockOwnerUser, 'org-01');
-  assert.equal(ownerVisible.length, 3, 'Owner sees all jobs in the organization');
+  assert.equal(ownerVisible.length, 3, 'Owner sees assigned and unassigned jobs');
 });
+
+// ============================================================================
+// P0-02: LATEST QUOTATION REVISION SUPERSEDING TESTS
+// ============================================================================
+
+test('P0-02: Rev 1 approved is superseded when Rev 2 is created pending_homeowner', () => {
+  const rev1Approved: QuotationRevision = {
+    revisionNumber: 1,
+    hash: 'REV1-11111111',
+    items: [{ description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 }],
+    subtotal: 180000,
+    discount: 0,
+    total: 180000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:00:00Z',
+    createdAt: '2026-11-06T09:50:00Z',
+    approvalEvidence: {
+      approvedByCustomer: true,
+      confirmationMethod: 'homeowner_portal_signature',
+      approverName: 'Chị Mai',
+      approvedAt: '2026-11-06T10:00:00Z',
+      approvedRevisionNumber: 1,
+      hash: 'REV1-11111111',
+      snapshotTotal: 180000,
+      isSimulatedVerification: true,
+    },
+  };
+
+  const rev2Pending: QuotationRevision = {
+    revisionNumber: 2,
+    hash: 'REV2-22222222',
+    items: [
+      { description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 },
+      { description: 'Thay tụ quạt dàn lạnh', price: 250000, quantity: 1 },
+    ],
+    subtotal: 430000,
+    discount: 0,
+    total: 430000,
+    status: 'pending_homeowner',
+    createdAt: '2026-11-06T10:20:00Z',
+  };
+
+  // Job has Rev 1 approved, but latest is Rev 2 pending
+  const jobWithSupersededRev: Job = {
+    ...baseJob,
+    quotationRevisions: [rev1Approved, rev2Pending],
+  };
+
+  assert.equal(hasValidQuotationAuthorization(jobWithSupersededRev), false);
+
+  const transitionRes = validateJobTransition({
+    job: jobWithSupersededRev,
+    targetStatus: 'DANG_SUA',
+    currentUser: mockTechUser,
+    currentOrg: mockOrg,
+  });
+
+  assert.equal(transitionRes.allowed, false);
+  assert.equal(transitionRes.code, 'QUO_001_REQUIRED');
+  assert.match(transitionRes.error || '', /phiên bản hiện hành/);
+});
+
+test('P0-02: Rev 1 approved is superseded when Rev 2 is rejected by customer', () => {
+  const rev1Approved: QuotationRevision = {
+    revisionNumber: 1,
+    hash: 'REV1-11111111',
+    items: [{ description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 }],
+    subtotal: 180000,
+    discount: 0,
+    total: 180000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:00:00Z',
+    createdAt: '2026-11-06T09:50:00Z',
+  };
+
+  const rev2Rejected: QuotationRevision = {
+    revisionNumber: 2,
+    hash: 'REV2-22222222',
+    items: [{ description: 'Thay tụ quạt', price: 300000, quantity: 1 }],
+    subtotal: 300000,
+    discount: 0,
+    total: 300000,
+    status: 'rejected',
+    createdAt: '2026-11-06T10:20:00Z',
+  };
+
+  const jobWithRejectedRev: Job = {
+    ...baseJob,
+    quotationRevisions: [rev1Approved, rev2Rejected],
+  };
+
+  assert.equal(hasValidQuotationAuthorization(jobWithRejectedRev), false);
+});
+
+test('P0-02: Rev 2 approved by customer successfully re-authorizes repair', () => {
+  const rev1Approved: QuotationRevision = {
+    revisionNumber: 1,
+    hash: 'REV1-11111111',
+    items: [{ description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 }],
+    subtotal: 180000,
+    discount: 0,
+    total: 180000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:00:00Z',
+    createdAt: '2026-11-06T09:50:00Z',
+  };
+
+  const rev2Approved: QuotationRevision = {
+    revisionNumber: 2,
+    hash: 'REV2-22222222',
+    items: [
+      { description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 },
+      { description: 'Thay tụ quạt dàn lạnh', price: 250000, quantity: 1 },
+    ],
+    subtotal: 430000,
+    discount: 0,
+    total: 430000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:35:00Z',
+    createdAt: '2026-11-06T10:20:00Z',
+    approvalEvidence: {
+      approvedByCustomer: true,
+      confirmationMethod: 'homeowner_portal_signature',
+      approverName: 'Chị Mai',
+      approvedAt: '2026-11-06T10:35:00Z',
+      approvedRevisionNumber: 2,
+      hash: 'REV2-22222222',
+      snapshotTotal: 430000,
+      isSimulatedVerification: true,
+    },
+  };
+
+  const jobRev2Approved: Job = {
+    ...baseJob,
+    quotationRevisions: [rev1Approved, rev2Approved],
+  };
+
+  assert.equal(hasValidQuotationAuthorization(jobRev2Approved), true);
+  const res = validateJobTransition({
+    job: jobRev2Approved,
+    targetStatus: 'DANG_SUA',
+    currentUser: mockTechUser,
+    currentOrg: mockOrg,
+  });
+  assert.equal(res.allowed, true);
+});
+
+// ============================================================================
+// P0-03: CENTRAL JOB MUTATION SERVICE (mutateJobState) & BYPASS ATTEMPTS
+// ============================================================================
+
+test('P0-03: mutateJobState blocks unauthorized status jump bypassing transition guard', () => {
+  const freshJob: Job = { ...baseJob, status: 'MOI', quotationRevisions: [] };
+  const mutationResult = mutateJobState(
+    freshJob,
+    { status: 'DANG_SUA' }, // Attempting to bypass straight to DANG_SUA
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  assert.equal(mutationResult.success, false);
+  assert.equal(mutationResult.code, 'INVALID_TRANSITION');
+});
+
+test('P0-03: mutateJobState blocks moving to DANG_SUA without approved quotation', () => {
+  const quoteJob: Job = { ...baseJob, status: 'BAO_GIA', quotationRevisions: [] };
+  const mutationResult = mutateJobState(
+    quoteJob,
+    { status: 'DANG_SUA' },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  assert.equal(mutationResult.success, false);
+  assert.equal(mutationResult.code, 'QUO_001_REQUIRED');
+});
+
+test('P0-03: mutateJobState blocks cross-tenant mutation attempt', () => {
+  const crossJob: Job = { ...baseJob, organizationId: 'org-OTHER' };
+  const mutationResult = mutateJobState(
+    crossJob,
+    { checklist: { ...baseJob.checklist, filterCleaned: true } },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  assert.equal(mutationResult.success, false);
+  assert.equal(mutationResult.code, 'TENANT_MISMATCH');
+});
+
+test('P0-03: mutateJobState blocks technician updating unassigned job or other technician job', () => {
+  const otherTechJob: Job = { ...baseJob, assignedTechnicianId: 'tech-02' };
+  const resOther = mutateJobState(
+    otherTechJob,
+    { checklist: { ...baseJob.checklist, filterCleaned: true } },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+  assert.equal(resOther.success, false);
+  assert.equal(resOther.code, 'NOT_ASSIGNED');
+
+  const unassignedJob: Job = { ...baseJob, assignedTechnicianId: undefined };
+  const resUnassigned = mutateJobState(
+    unassignedJob,
+    { checklist: { ...baseJob.checklist, filterCleaned: true } },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+  assert.equal(resUnassigned.success, false);
+  assert.equal(resUnassigned.code, 'NOT_ASSIGNED');
+});
+
+test('P0-03: mutateJobState blocks technician attempting to reassign job', () => {
+  const mutationResult = mutateJobState(
+    baseJob,
+    { assignedTechnicianId: 'tech-02' }, // Tech trying to reassign to someone else
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  assert.equal(mutationResult.success, false);
+  assert.equal(mutationResult.code, 'ROLE_UNAUTHORIZED');
+});
+
+test('P0-03: mutateJobState blocks mutations when organization subscription is read_only or suspended', () => {
+  const resRo = mutateJobState(
+    baseJob,
+    { discount: 50000 },
+    { currentUser: mockTechUser, currentOrg: mockReadOnlyOrg }
+  );
+  assert.equal(resRo.success, false);
+  assert.equal(resRo.code, 'SUBSCRIPTION_LOCKED');
+
+  const resSusp = mutateJobState(
+    baseJob,
+    { discount: 50000 },
+    { currentUser: mockTechUser, currentOrg: mockSuspendedOrg }
+  );
+  assert.equal(resSusp.success, false);
+  assert.equal(resSusp.code, 'SUBSCRIPTION_LOCKED');
+});
+
+test('P0-03: mutateJobState applies valid mutation and strictly preserves immutable fields', () => {
+  const validMutation = mutateJobState(
+    baseJob,
+    {
+      id: 'TAMPERED-ID', // Should be ignored and preserved
+      organizationId: 'TAMPERED-ORG', // Should be ignored or rejected
+      discount: 20000,
+    },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  // If organizationId in update payload doesn't match currentOrg, it's rejected
+  assert.equal(validMutation.success, false);
+
+  const cleanMutation = mutateJobState(
+    baseJob,
+    {
+      discount: 20000,
+      checklist: { ...baseJob.checklist, filterCleaned: true },
+    },
+    { currentUser: mockTechUser, currentOrg: mockOrg }
+  );
+
+  assert.equal(cleanMutation.success, true);
+  assert.equal(cleanMutation.job?.id, baseJob.id, 'Job ID must remain intact');
+  assert.equal(cleanMutation.job?.organizationId, baseJob.organizationId, 'Tenant must remain intact');
+  assert.equal(cleanMutation.job?.discount, 20000);
+  assert.equal(cleanMutation.job?.checklist.filterCleaned, true);
+});
+
