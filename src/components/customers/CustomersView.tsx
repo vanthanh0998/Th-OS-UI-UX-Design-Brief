@@ -243,8 +243,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   }}
                   className={`p-3 sm:p-3.5 rounded-xl border transition-all cursor-pointer relative ${
                     isSelected
-                      ? 'border-l-4 border-l-[#0d9488] border-slate-300 bg-teal-50/20 shadow-xs'
-                      : 'border-l-4 border-l-transparent border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-slate-300'
+                      ? 'border-teal-500 bg-teal-50/30 shadow-xs ring-1 ring-teal-500/20'
+                      : 'border-slate-200/80 bg-white hover:bg-slate-50/80 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2.5">

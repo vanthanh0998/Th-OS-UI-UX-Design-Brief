@@ -51,7 +51,7 @@ interface JobDetailModalProps {
   job: Job | null;
   isOpen: boolean;
   onClose: () => void;
-  onUpdateJob: (updatedJob: Job) => void;
+  onUpdateJob: (updatedJob: Job, operation?: import('../../lib/status-machine').JobMutationOperation) => void;
   onOpenInvoice: (job: Job) => void;
   currentUser?: StaffUser;
   currentOrg?: Organization;
@@ -219,7 +219,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
       quotationRevisions: [...(job.quotationRevisions || []), newRevision],
     };
 
-    onUpdateJob(updatedJob);
+    onUpdateJob(updatedJob, 'QUOTE_REVISION_CREATE');
     setApprovalNotice(
       `Đã lập Báo giá ${hash} (#REV-00${revNumber}) và chuyển trạng thái Chờ duyệt giá. Các duyệt cũ (nếu có) bị thay thế theo P0-02.`
     );
@@ -253,7 +253,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
       return rev;
     });
 
-    onUpdateJob({ ...job, quotationRevisions: updatedRevisions });
+    onUpdateJob({ ...job, quotationRevisions: updatedRevisions }, 'QUOTE_REVISION_CREATE');
     setApprovalNotice('Đã ghi nhận báo cáo miệng của thợ. Vui lòng mở Cổng Phê Duyệt để gia chủ xác nhận (QUO-001).');
     setTimeout(() => setApprovalNotice(null), 4000);
   };
@@ -290,7 +290,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               approvedRevisionNumber: rev.revisionNumber,
               hash: rev.hash,
               snapshotTotal: rev.total,
-              notes: 'Gia chủ trực tiếp xác nhận qua Cổng Phê Duyệt Khách Hàng (Mô phỏng Frontend)',
+              notes: 'DEMO — Xác nhận qua Cổng gia chủ mô phỏng (Chưa xác minh danh tính e-KYC)',
               isSimulatedVerification: true,
             },
           };
@@ -298,7 +298,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         return rev;
       });
 
-      onUpdateJob({ ...job, quotationRevisions: updatedRevisions });
+      onUpdateJob({ ...job, quotationRevisions: updatedRevisions }, 'QUOTE_APPROVAL');
       setIsHomeownerPortalOpen(false);
       setGuardError(null);
       setApprovalNotice(
@@ -335,10 +335,13 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         },
       };
 
-      onUpdateJob({
-        ...job,
-        quotationRevisions: [...(job.quotationRevisions || []), waiverRevision],
-      });
+      onUpdateJob(
+        {
+          ...job,
+          quotationRevisions: [...(job.quotationRevisions || []), waiverRevision],
+        },
+        'QUOTE_APPROVAL'
+      );
       setIsHomeownerPortalOpen(false);
       setShowWaiverForm(false);
       setGuardError(null);
@@ -1206,14 +1209,14 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
           maxWidth="md"
         >
           <div className="space-y-4">
-            {/* Transparent Prototype Disclaimer */}
+            {/* Transparent Prototype Disclaimer (P0-02) */}
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
               <div className="font-bold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-700" />
-                <span>[MÔ PHỎNG FRONTEND] Cổng Phê Duyệt Khách Hàng ThợOS</span>
+                <span>DEMO — Cổng Phê Duyệt Khách Hàng (Chưa xác minh danh tính)</span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                Màn hình này mô phỏng giao diện gia chủ truy cập qua tin nhắn SMS / Zalo link để trực tiếp kiểm tra và ký duyệt chi phí (chưa tích hợp e-KYC/chữ ký số backend production).
+                Giao diện mô phỏng luồng khách hàng kiểm tra và ký xác nhận trực tiếp qua SMS / Zalo link. Mã băm (#REV) đóng vai trò kiểm tra tính toàn vẹn client-side nguyên mẫu, chưa phải chữ ký số bảo mật bất biến production (thuộc về backend PKI / CA).
               </p>
             </div>
 

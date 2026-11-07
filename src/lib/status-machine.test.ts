@@ -212,18 +212,33 @@ test('QUO-001: blocks transition to DANG_SUA if status is approved but lacks cus
 });
 
 test('QUO-001: allows transition to DANG_SUA with verified customer approval evidence', () => {
+  const items = [{ description: 'Vệ sinh dàn lạnh', price: 180000, quantity: 1 }];
+  const createdAt = '2026-11-06T10:00:00Z';
+  const approvedAt = '2026-11-06T10:15:00Z';
+  const hash = computeQuotationHash(1, items, 180000, createdAt);
+
   const validApprovedRev: QuotationRevision = {
     revisionNumber: 1,
-    hash: 'REV1-A1B2C3D4',
-    items: [{ description: 'Vệ sinh dàn lạnh', price: 180000, quantity: 1 }],
+    hash,
+    items,
     subtotal: 180000,
     discount: 0,
     total: 180000,
     status: 'approved',
     approvedByCustomer: true,
     approverName: 'Chị Mai (Chủ hộ)',
-    approvedAt: '2026-11-06T10:15:00Z',
-    createdAt: '2026-11-06T10:00:00Z',
+    approvedAt,
+    createdAt,
+    approvalEvidence: {
+      approvedByCustomer: true,
+      confirmationMethod: 'homeowner_portal_signature',
+      approverName: 'Chị Mai (Chủ hộ)',
+      approvedAt,
+      approvedRevisionNumber: 1,
+      hash,
+      snapshotTotal: 180000,
+      isSimulatedVerification: true,
+    },
   };
 
   const jobApproved: Job = { ...baseJob, quotationRevisions: [validApprovedRev] };
@@ -239,6 +254,8 @@ test('QUO-001: allows transition to DANG_SUA with verified customer approval evi
 });
 
 test('QUO-001: allows transition to DANG_SUA with valid customer-acknowledged quotation waiver', () => {
+  const reason = 'Bảo trì vệ sinh định kỳ theo giá niêm yết chuẩn, không phát sinh linh kiện';
+  const waivedAt = '2026-11-06T10:05:00Z';
   const validWaiverRev: QuotationRevision = {
     revisionNumber: 1,
     hash: 'WAIVER-1',
@@ -247,10 +264,18 @@ test('QUO-001: allows transition to DANG_SUA with valid customer-acknowledged qu
     discount: 0,
     total: 180000,
     status: 'waived',
-    waiverReason: 'Bảo trì vệ sinh định kỳ theo giá niêm yết chuẩn, không phát sinh linh kiện',
+    waiverReason: reason,
     customerAcknowledged: true,
-    createdAt: '2026-11-06T10:05:00Z',
-    approvedAt: '2026-11-06T10:05:00Z',
+    createdAt: waivedAt,
+    approvedAt: waivedAt,
+    waiverEvidence: {
+      waived: true,
+      waiverReason: reason,
+      customerAcknowledged: true,
+      waivedAt,
+      waivedBy: 'Chị Mai (Chủ hộ)',
+      isSimulatedVerification: true,
+    },
   };
 
   const jobWaived: Job = { ...baseJob, quotationRevisions: [validWaiverRev] };
@@ -454,28 +479,33 @@ test('P0-02: Rev 2 approved by customer successfully re-authorizes repair', () =
     createdAt: '2026-11-06T09:50:00Z',
   };
 
+  const rev2Items = [
+    { description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 },
+    { description: 'Thay tụ quạt dàn lạnh', price: 250000, quantity: 1 },
+  ];
+  const rev2CreatedAt = '2026-11-06T10:20:00Z';
+  const rev2ApprovedAt = '2026-11-06T10:35:00Z';
+  const rev2Hash = computeQuotationHash(2, rev2Items, 430000, rev2CreatedAt);
+
   const rev2Approved: QuotationRevision = {
     revisionNumber: 2,
-    hash: 'REV2-22222222',
-    items: [
-      { description: 'Vệ sinh tiêu chuẩn', price: 180000, quantity: 1 },
-      { description: 'Thay tụ quạt dàn lạnh', price: 250000, quantity: 1 },
-    ],
+    hash: rev2Hash,
+    items: rev2Items,
     subtotal: 430000,
     discount: 0,
     total: 430000,
     status: 'approved',
     approvedByCustomer: true,
     approverName: 'Chị Mai',
-    approvedAt: '2026-11-06T10:35:00Z',
-    createdAt: '2026-11-06T10:20:00Z',
+    approvedAt: rev2ApprovedAt,
+    createdAt: rev2CreatedAt,
     approvalEvidence: {
       approvedByCustomer: true,
       confirmationMethod: 'homeowner_portal_signature',
       approverName: 'Chị Mai',
-      approvedAt: '2026-11-06T10:35:00Z',
+      approvedAt: rev2ApprovedAt,
       approvedRevisionNumber: 2,
-      hash: 'REV2-22222222',
+      hash: rev2Hash,
       snapshotTotal: 430000,
       isSimulatedVerification: true,
     },
@@ -614,4 +644,183 @@ test('P0-03: mutateJobState applies valid mutation and strictly preserves immuta
   assert.equal(cleanMutation.job?.discount, 20000);
   assert.equal(cleanMutation.job?.checklist.filterCleaned, true);
 });
+
+// ============================================================================
+// P0-01 (v3.1): OPERATION ALLOWLIST & FORBIDDEN MUTATION TESTS
+// ============================================================================
+
+test('P0-01: mutateJobState rejects technician attempting to forge paymentEntries or paymentStatus', () => {
+  const forgedPaymentMutation = mutateJobState(
+    baseJob,
+    {
+      paymentStatus: 'paid',
+      paymentEntries: [
+        {
+          id: 'FORGED-PAY',
+          jobId: baseJob.id,
+          amount: 500000,
+          type: 'payment',
+          method: 'TIEN_MAT',
+          recordedBy: 'Thợ tự ghi',
+          recordedAt: new Date().toISOString(),
+        },
+      ],
+    },
+    { currentUser: mockTechUser, currentOrg: mockOrg, operation: 'PAYMENT_RECORD' }
+  );
+
+  assert.equal(forgedPaymentMutation.success, false);
+  assert.equal(forgedPaymentMutation.code, 'ROLE_UNAUTHORIZED');
+});
+
+test('P0-01: mutateJobState rejects technician injecting fields outside allowlist (e.g. assignedTechnicianId during technical update)', () => {
+  const forgedFieldMutation = mutateJobState(
+    baseJob,
+    {
+      checklist: { ...baseJob.checklist, filterCleaned: true },
+      assignedTechnicianId: 'tech-02', // Not allowed in TECHNICAL_UPDATE
+    },
+    { currentUser: mockTechUser, currentOrg: mockOrg, operation: 'TECHNICAL_UPDATE' }
+  );
+
+  assert.equal(forgedFieldMutation.success, false);
+  assert.equal(forgedFieldMutation.code, 'FORBIDDEN_FIELD_MUTATION');
+});
+
+test('P0-01: mutateJobState allows owner/manager to record payment entries via PAYMENT_RECORD operation', () => {
+  const validPaymentMutation = mutateJobState(
+    baseJob,
+    {
+      paymentStatus: 'paid',
+      paymentEntries: [
+        {
+          id: 'LEDGER-01',
+          jobId: baseJob.id,
+          amount: 180000,
+          type: 'payment',
+          method: 'TIEN_MAT',
+          recordedBy: 'Nguyễn Văn Minh (Chủ cơ sở)',
+          recordedAt: new Date().toISOString(),
+        },
+      ],
+    },
+    { currentUser: mockOwnerUser, currentOrg: mockOrg, operation: 'PAYMENT_RECORD' }
+  );
+
+  assert.equal(validPaymentMutation.success, true);
+  assert.equal(validPaymentMutation.job?.paymentStatus, 'paid');
+  assert.equal(validPaymentMutation.job?.paymentEntries?.length, 1);
+});
+
+// ============================================================================
+// P0-02 (v3.1): QUOTATION APPROVAL INTEGRITY & TAMPERING DETECTION TESTS
+// ============================================================================
+
+test('P0-02: hasValidQuotationAuthorization rejects approved revision if approvalEvidence is missing', () => {
+  const revWithoutEvidence: QuotationRevision = {
+    revisionNumber: 1,
+    hash: computeQuotationHash(1, [{ description: 'Test', price: 100000, quantity: 1 }], 100000, '2026-11-06T10:00:00Z'),
+    items: [{ description: 'Test', price: 100000, quantity: 1 }],
+    subtotal: 100000,
+    discount: 0,
+    total: 100000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:30:00Z',
+    createdAt: '2026-11-06T10:00:00Z',
+    // approvalEvidence is missing!
+  };
+
+  const jobWithMissingEvidence: Job = {
+    ...baseJob,
+    quotationRevisions: [revWithoutEvidence],
+  };
+
+  assert.equal(hasValidQuotationAuthorization(jobWithMissingEvidence), false);
+});
+
+test('P0-02: hasValidQuotationAuthorization rejects revision if snapshot items were tampered after hash generation', () => {
+  const originalItems = [{ description: 'Vệ sinh dàn lạnh', price: 180000, quantity: 1 }];
+  const hash = computeQuotationHash(1, originalItems, 180000, '2026-11-06T10:00:00Z');
+
+  const tamperedRevision: QuotationRevision = {
+    revisionNumber: 1,
+    hash,
+    // Attacker altered items list or price without updating hash!
+    items: [{ description: 'Vệ sinh dàn lạnh + Thay block', price: 1800000, quantity: 1 }],
+    subtotal: 1800000,
+    discount: 0,
+    total: 1800000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:30:00Z',
+    createdAt: '2026-11-06T10:00:00Z',
+    approvalEvidence: {
+      approvedByCustomer: true,
+      confirmationMethod: 'homeowner_portal_signature',
+      approverName: 'Chị Mai',
+      approvedAt: '2026-11-06T10:30:00Z',
+      approvedRevisionNumber: 1,
+      hash,
+      snapshotTotal: 1800000,
+      isSimulatedVerification: true,
+    },
+  };
+
+  const jobWithTamperedSnapshot: Job = {
+    ...baseJob,
+    quotationRevisions: [tamperedRevision],
+  };
+
+  assert.equal(hasValidQuotationAuthorization(jobWithTamperedSnapshot), false);
+});
+
+test('P0-02: mutateJobState blocks tampering with past immutable quotation snapshots', () => {
+  const rev1Items = [{ description: 'Item 1', price: 100000, quantity: 1 }];
+  const rev1Hash = computeQuotationHash(1, rev1Items, 100000, '2026-11-06T10:00:00Z');
+  const rev1: QuotationRevision = {
+    revisionNumber: 1,
+    hash: rev1Hash,
+    items: rev1Items,
+    subtotal: 100000,
+    discount: 0,
+    total: 100000,
+    status: 'approved',
+    approvedByCustomer: true,
+    approverName: 'Chị Mai',
+    approvedAt: '2026-11-06T10:30:00Z',
+    createdAt: '2026-11-06T10:00:00Z',
+  };
+
+  const jobWithRev1: Job = { ...baseJob, quotationRevisions: [rev1] };
+
+  // Attempting to modify rev1 while adding rev2
+  const tamperedRev1: QuotationRevision = {
+    ...rev1,
+    total: 999999, // Tampered past snapshot
+    hash: 'FAKE-HASH',
+  };
+  const rev2: QuotationRevision = {
+    revisionNumber: 2,
+    hash: 'REV2-NEW',
+    items: [],
+    subtotal: 50000,
+    discount: 0,
+    total: 50000,
+    status: 'pending_homeowner',
+    createdAt: '2026-11-06T11:00:00Z',
+  };
+
+  const mutateRes = mutateJobState(
+    jobWithRev1,
+    { quotationRevisions: [tamperedRev1, rev2] },
+    { currentUser: mockTechUser, currentOrg: mockOrg, operation: 'QUOTE_REVISION_CREATE' }
+  );
+
+  assert.equal(mutateRes.success, false);
+  assert.equal(mutateRes.code, 'IMMUTABLE_VIOLATION');
+});
+
 

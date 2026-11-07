@@ -58,6 +58,7 @@ import {
   canPerformWriteOperation,
   getVisibleJobsForUser,
   mutateJobState,
+  JobMutationOperation,
 } from './lib/status-machine';
 import { calculateJobTotal } from './lib/pricing';
 import {
@@ -155,15 +156,22 @@ export default function App() {
     }
   }, [jobs]);
 
-  // Handlers for Jobs with P0/P1 business policy guards (Central Mutation Guard P0-03)
-  const handleUpdateJob = (updatedJob: Job): { success: boolean; error?: string } => {
+  // Handlers for Jobs with P0/P1 business policy guards (Central Mutation Guard P0-01, P0-03)
+  const handleUpdateJob = (
+    updatedJob: Job,
+    operation?: JobMutationOperation
+  ): { success: boolean; error?: string } => {
     const existing = jobs.find((j) => j.id === updatedJob.id);
     if (!existing) {
       alert('Không tìm thấy ca làm việc cần cập nhật.');
       return { success: false, error: 'Không tìm thấy ca làm việc.' };
     }
 
-    const res = mutateJobState(existing, updatedJob, { currentUser, currentOrg });
+    const res = mutateJobState(existing, updatedJob, {
+      currentUser,
+      currentOrg,
+      operation,
+    });
     if (!res.success || !res.job) {
       alert(res.error || 'Cập nhật ca làm việc bị từ chối theo chính sách nghiệp vụ.');
       return { success: false, error: res.error };
@@ -181,7 +189,11 @@ export default function App() {
     const next = getNextStatus(job.status);
     if (!next) return;
 
-    const res = mutateJobState(job, { status: next }, { currentUser, currentOrg });
+    const res = mutateJobState(
+      job,
+      { status: next },
+      { currentUser, currentOrg, operation: 'STATUS_TRANSITION' }
+    );
     if (!res.success || !res.job) {
       if (res.code === 'QUO_001_REQUIRED') {
         setSelectedJob(job);
@@ -198,7 +210,7 @@ export default function App() {
     }
   };
 
-  // Dynamic Payment Ledger Confirmation (P0-02 & P0-03 & P1)
+  // Dynamic Payment Ledger Confirmation (P1 Consistency & P0-01)
   const handleConfirmPayment = (
     jobId: string,
     amount: number,
@@ -208,10 +220,26 @@ export default function App() {
     notes?: string,
     idempotencyKey?: string
   ): { success: boolean; error?: string } => {
-    // Subscription write guard
+    // 1. Subscription write guard
     const writeCheck = canPerformWriteOperation(currentOrg);
     if (!writeCheck.allowed) {
       return { success: false, error: writeCheck.error };
+    }
+
+    // 2. Organization tenant check on user
+    if (currentUser.organizationId !== currentOrg.id) {
+      return {
+        success: false,
+        error: 'Người dùng hiện tại không thuộc tổ chức đang thao tác (Tenant mismatch).',
+      };
+    }
+
+    // 3. Role authorization check (P0-01: Only Owner/Manager can record payment)
+    if (currentUser.role !== 'owner' && currentUser.role !== 'manager') {
+      return {
+        success: false,
+        error: 'Kỹ thuật viên không có quyền xác nhận thu tiền vào sổ cái.',
+      };
     }
 
     const targetJob = jobs.find((j) => j.id === jobId);
@@ -219,6 +247,11 @@ export default function App() {
       return { success: false, error: 'Không tìm thấy ca làm việc.' };
     }
 
+    if (targetJob.organizationId !== currentOrg.id) {
+      return { success: false, error: 'Ca làm việc không thuộc tổ chức hiện tại.' };
+    }
+
+    // 4. Calculate new ledger entry
     const res = recordPaymentLedgerEntry({
       job: targetJob,
       currentUser,
@@ -234,7 +267,16 @@ export default function App() {
       return { success: false, error: res.error || 'Ghi nhận sổ cái thất bại.' };
     }
 
-    handleUpdateJob(res.updatedJob);
+    // 5. P1 Invariant: Enforce central mutation guard with operation PAYMENT_RECORD and check result before returning success
+    const mutationRes = handleUpdateJob(res.updatedJob, 'PAYMENT_RECORD');
+    if (!mutationRes.success) {
+      return {
+        success: false,
+        error: mutationRes.error || 'Cập nhật sổ cái vào ca làm việc bị từ chối.',
+      };
+    }
+
+    // Update invoice modal state only AFTER mutation succeeds
     if (invoiceJob && invoiceJob.id === jobId) {
       setInvoiceJob(res.updatedJob);
     }
